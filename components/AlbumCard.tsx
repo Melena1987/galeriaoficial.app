@@ -26,14 +26,14 @@ const AlbumCard: React.FC<AlbumCardProps> = ({ album, onClick, onDelete, onShare
       onClick={onClick}
     >
       {isAdmin && (
-         <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100">
+         <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <button 
             onClick={handleShare}
             className="p-1.5 text-white transition-all bg-violet-600 rounded-full hover:bg-violet-500"
             aria-label="Compartir álbum"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 112.632-3.001M2.062 12a3 3 0 113.001-2.632A3 3 0 012.062 12zm13.372-3.001a3 3 0 102.632-3.001 3 3 0 00-2.632 3.001z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
             </svg>
           </button>
           <button 
