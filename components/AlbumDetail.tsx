@@ -3,9 +3,8 @@ import { db, storage, auth } from '../services/firebase';
 import { Album, Photo } from '../types';
 import UploadForm from './UploadForm';
 import PhotoCard from './PhotoCard';
-import Lightbox from './Lightbox';
 import Spinner from './Spinner';
-import ShareModal from './ShareModal';
+import Lightbox from './Lightbox';
 
 interface AlbumDetailProps {
   album: Album;
@@ -16,13 +15,12 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [isShareModalOpen, setShareModalOpen] = useState(false);
-  
+
   const user = auth.currentUser;
   const isAdmin = user?.email === 'manudesignsforyou@gmail.com';
 
   useEffect(() => {
-    if (!album) return;
+    setLoading(true);
     const unsubscribe = db.collection('photos')
       .where('albumId', '==', album.id)
       .orderBy('createdAt', 'desc')
@@ -33,28 +31,46 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
         } as Photo));
         setPhotos(albumPhotos);
         setLoading(false);
+      }, (error) => {
+        console.error("Error fetching photos: ", error);
+        setLoading(false);
       });
+
     return () => unsubscribe();
-  }, [album]);
+  }, [album.id]);
 
   const handleDeletePhoto = async (photo: Photo) => {
-    if (!window.confirm(`¿Estás seguro de que quieres eliminar la foto "${photo.fileName}"?`)) return;
+    if (!window.confirm("Are you sure you want to delete this photo? This action cannot be undone.")) return;
 
     try {
-      const photoRef = storage.refFromURL(photo.url);
-      await photoRef.delete();
+      // Delete from Firestore
       await db.collection('photos').doc(photo.id).delete();
       
+      // Delete from Storage
+      const photoRef = storage.refFromURL(photo.url);
+      await photoRef.delete();
+
+      // Check if this was the cover photo
       const albumRef = db.collection('albums').doc(album.id);
-      if (album.coverPhotoUrl === photo.url) {
-        const remainingPhotos = photos.filter(p => p.id !== photo.id);
-        const newCoverUrl = remainingPhotos.length > 0 ? remainingPhotos[0].url : '';
+      const albumDoc = await albumRef.get();
+      if (albumDoc.exists && albumDoc.data()?.coverPhotoUrl === photo.url) {
+        // If there are other photos, set the newest one as cover. Otherwise, remove cover.
+        const remainingPhotosQuery = db.collection('photos')
+          .where('albumId', '==', album.id)
+          .orderBy('createdAt', 'desc')
+          .limit(1);
+        const remainingPhotosSnapshot = await remainingPhotosQuery.get();
+        
+        let newCoverUrl = '';
+        if (!remainingPhotosSnapshot.empty) {
+          newCoverUrl = remainingPhotosSnapshot.docs[0].data().url;
+        }
         await albumRef.update({ coverPhotoUrl: newCoverUrl });
       }
 
     } catch (error) {
       console.error("Error deleting photo:", error);
-      alert("No se pudo eliminar la foto.");
+      alert("Failed to delete photo.");
     }
   };
 
@@ -63,52 +79,41 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
   const nextPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev + 1) % photos.length));
   const prevPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev - 1 + photos.length) % photos.length));
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950">
-        <Spinner />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <main className="container p-4 mx-auto md:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+    <div className="min-h-screen bg-slate-900 text-white">
+      <header className="sticky top-0 z-30 flex items-center h-16 bg-slate-900/75 backdrop-blur-lg ring-1 ring-white/10">
+        <div className="container flex items-center gap-4 px-4 mx-auto md:px-6">
+          <button onClick={onBack} className="p-2 transition-colors rounded-full text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Volver a álbumes">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
           <div>
-            <button onClick={onBack} className="flex items-center gap-2 mb-2 text-violet-400 hover:text-violet-300">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Volver a Mis Álbumes
-            </button>
-            <h1 className="text-3xl font-bold">{album.name}</h1>
-            <p className="text-slate-400">{album.description}</p>
+            <h1 className="text-xl font-bold">{album.name}</h1>
+            <p className="text-sm text-slate-400">{album.description}</p>
           </div>
-          {isAdmin && (
-            <button
-              onClick={() => setShareModalOpen(true)}
-              className="px-4 py-2 font-semibold text-white transition-colors bg-green-600 rounded-md hover:bg-green-700"
-            >
-              Compartir
-            </button>
-          )}
         </div>
+      </header>
 
+      <main className="container p-4 mx-auto md:p-6">
         {isAdmin && <UploadForm albumId={album.id} />}
         
-        {photos.length === 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Spinner />
+          </div>
+        ) : photos.length === 0 ? (
           <div className="py-20 text-center text-slate-500">
-            <p>Este álbum aún no tiene fotos.</p>
-            {isAdmin && <p>¡Sube la primera!</p>}
+            <p>Este álbum está vacío.</p>
+            {isAdmin && <p>¡Sube tu primera foto para empezar!</p>}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {photos.map((photo, index) => (
-              <PhotoCard 
-                key={photo.id} 
-                photo={photo} 
-                onClick={() => openLightbox(index)} 
+              <PhotoCard
+                key={photo.id}
+                photo={photo}
+                onClick={() => openLightbox(index)}
                 onDelete={() => handleDeletePhoto(photo)}
                 isAdmin={isAdmin}
               />
@@ -116,7 +121,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
           </div>
         )}
       </main>
-      
+
       {lightboxIndex !== null && (
         <Lightbox 
           photos={photos} 
@@ -124,14 +129,6 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
           onClose={closeLightbox}
           onNext={nextPhoto}
           onPrev={prevPhoto}
-        />
-      )}
-
-      {isAdmin && (
-        <ShareModal
-          isOpen={isShareModalOpen}
-          onClose={() => setShareModalOpen(false)}
-          album={album}
         />
       )}
     </div>
