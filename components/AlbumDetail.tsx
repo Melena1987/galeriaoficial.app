@@ -1,10 +1,11 @@
+// FIX: Implement the AlbumDetail component to display photos within an album.
 import React, { useState, useEffect } from 'react';
-import { db, storage, auth } from '../services/firebase';
 import { Album, Photo } from '../types';
+import { db, storage, auth } from '../services/firebase';
 import UploadForm from './UploadForm';
 import PhotoCard from './PhotoCard';
-import Spinner from './Spinner';
 import Lightbox from './Lightbox';
+import Spinner from './Spinner';
 
 interface AlbumDetailProps {
   album: Album;
@@ -40,8 +41,8 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
   }, [album.id]);
 
   const handleDeletePhoto = async (photo: Photo) => {
-    if (!window.confirm("Are you sure you want to delete this photo? This action cannot be undone.")) return;
-
+    if (!window.confirm("Are you sure you want to delete this photo?")) return;
+    
     try {
       // Delete from Firestore
       await db.collection('photos').doc(photo.id).delete();
@@ -50,27 +51,23 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
       const photoRef = storage.refFromURL(photo.url);
       await photoRef.delete();
 
-      // Check if this was the cover photo
+      // Check if it was the cover photo
       const albumRef = db.collection('albums').doc(album.id);
       const albumDoc = await albumRef.get();
       if (albumDoc.exists && albumDoc.data()?.coverPhotoUrl === photo.url) {
-        // If there are other photos, set the newest one as cover. Otherwise, remove cover.
-        const remainingPhotosQuery = db.collection('photos')
-          .where('albumId', '==', album.id)
-          .orderBy('createdAt', 'desc')
-          .limit(1);
-        const remainingPhotosSnapshot = await remainingPhotosQuery.get();
+        // If there are other photos, set the newest one as cover. Otherwise, remove it.
+        const remainingPhotosQuery = await db.collection('photos')
+            .where('albumId', '==', album.id)
+            .orderBy('createdAt', 'desc')
+            .limit(1)
+            .get();
         
-        let newCoverUrl = '';
-        if (!remainingPhotosSnapshot.empty) {
-          newCoverUrl = remainingPhotosSnapshot.docs[0].data().url;
-        }
+        const newCoverUrl = remainingPhotosQuery.docs.length > 0 ? remainingPhotosQuery.docs[0].data().url : null;
         await albumRef.update({ coverPhotoUrl: newCoverUrl });
       }
-
     } catch (error) {
-      console.error("Error deleting photo:", error);
-      alert("Failed to delete photo.");
+        console.error("Error deleting photo:", error);
+        alert("Failed to delete photo.");
     }
   };
 
@@ -81,27 +78,29 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
-      <header className="sticky top-0 z-30 flex items-center h-16 bg-slate-900/75 backdrop-blur-lg ring-1 ring-white/10">
-        <div className="container flex items-center gap-4 px-4 mx-auto md:px-6">
-          <button onClick={onBack} className="p-2 transition-colors rounded-full text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Volver a álbumes">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+      <header className="sticky top-0 z-20 h-16 bg-slate-900/75 backdrop-blur-lg">
+        <div className="container flex items-center h-full mx-auto px-4 md:px-6">
+          <button onClick={onBack} className="flex items-center gap-2 p-2 -ml-2 transition-colors rounded-full text-slate-300 hover:bg-slate-800 hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
+            <span className="hidden sm:inline">Volver a Álbumes</span>
           </button>
-          <div>
-            <h1 className="text-xl font-bold">{album.name}</h1>
-            <p className="text-sm text-slate-400">{album.description}</p>
-          </div>
         </div>
       </header>
 
       <main className="container p-4 mx-auto md:p-6">
+        <div className="mb-6">
+            <h1 className="text-4xl font-bold">{album.name}</h1>
+            <p className="mt-2 text-lg text-slate-400">{album.description}</p>
+        </div>
+        
         {isAdmin && <UploadForm albumId={album.id} />}
         
         {loading ? (
-          <div className="flex justify-center py-10">
-            <Spinner />
-          </div>
+            <div className="flex justify-center py-10">
+                <Spinner />
+            </div>
         ) : photos.length === 0 ? (
           <div className="py-20 text-center text-slate-500">
             <p>Este álbum está vacío.</p>
@@ -121,7 +120,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
           </div>
         )}
       </main>
-
+      
       {lightboxIndex !== null && (
         <Lightbox 
           photos={photos} 
