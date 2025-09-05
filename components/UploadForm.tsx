@@ -132,11 +132,9 @@ const UploadForm: React.FC<UploadFormProps> = ({ album, onAlbumCreated }) => {
     }
   };
 
+  // The title is now provided by the Modal, so the h2 is removed from here.
   return (
-    <div className="p-6 bg-gray-800 rounded-lg shadow-xl">
-        <h2 className="mb-4 text-xl font-bold text-white">
-            {album ? `Subir Fotos a "${album.name}"` : "Crear Nuevo Álbum"}
-        </h2>
+    <div className="p-1 bg-gray-800">
         <form onSubmit={handleSubmit} className="space-y-4">
             {!album && (
                 <>

@@ -6,11 +6,13 @@ import AlbumCard from './AlbumCard';
 import AlbumDetail from './AlbumDetail';
 import UploadForm from './UploadForm';
 import Spinner from './Spinner';
+import Modal from './Modal'; // Import the new Modal component
 
 const Gallery: React.FC = () => {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false); // State for the modal
   const user = auth.currentUser;
 
   const fetchAlbums = useCallback(() => {
@@ -83,7 +85,7 @@ const Gallery: React.FC = () => {
   };
   
   const handleAlbumCreated = () => {
-    // onSnapshot will handle the update, so this can be empty or used for other side-effects.
+    setIsUploadModalOpen(false); // Close modal on success
   }
 
   const selectedAlbum = albums.find(album => album.id === selectedAlbumId);
@@ -96,10 +98,27 @@ const Gallery: React.FC = () => {
           <AlbumDetail album={selectedAlbum} onBack={() => setSelectedAlbumId(null)} />
         ) : (
           <div className="container p-4 mx-auto md:p-6 lg:p-8">
-            <div className="mb-8">
-              <UploadForm onAlbumCreated={handleAlbumCreated} />
+            <div className="flex items-center justify-between mb-8">
+               <h2 className="text-2xl font-bold">Mis Álbumes</h2>
+               <button
+                 onClick={() => setIsUploadModalOpen(true)}
+                 className="flex items-center px-4 py-2 font-medium text-white transition-colors bg-indigo-600 rounded-md shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 focus:ring-offset-gray-900"
+               >
+                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                 </svg>
+                 Crear Nuevo Álbum
+               </button>
             </div>
-            <h2 className="mb-6 text-2xl font-bold">Mis Álbumes</h2>
+            
+            <Modal
+              isOpen={isUploadModalOpen}
+              onClose={() => setIsUploadModalOpen(false)}
+              title="Crear Nuevo Álbum"
+            >
+              <UploadForm onAlbumCreated={handleAlbumCreated} />
+            </Modal>
+
             {loading ? (
               <div className="flex justify-center py-10">
                 <Spinner />
