@@ -1,24 +1,37 @@
 import React, { useState, useEffect } from 'react';
-// FIX: Import firebase from 'firebase/compat/app' to get access to the v8 namespaced API.
-import firebase from 'firebase/compat/app';
 import { auth } from './services/firebase';
+import firebase from 'firebase/compat/app'; // For User type
 import Login from './components/Login';
 import Gallery from './components/Gallery';
 import Spinner from './components/Spinner';
+import PublicAlbumView from './components/PublicAlbumView';
 
 const App: React.FC = () => {
-  // FIX: Use firebase.User for the user state type, which is the correct type for a user object in the Firebase v8 API.
   const [user, setUser] = useState<firebase.User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
+  const [isPublicView, setIsPublicView] = useState(false);
+  const [publicAlbumId, setPublicAlbumId] = useState<string | null>(null);
 
   useEffect(() => {
-    // FIX: Switched from the v9 modular onAuthStateChanged(auth, ...) to the v8 namespaced method auth.onAuthStateChanged(...).
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-      setUser(currentUser);
+    // Check for public album route
+    const path = window.location.pathname;
+    if (path.startsWith('/public/album/')) {
+      const parts = path.split('/');
+      const albumId = parts[3];
+      if (albumId) {
+        setIsPublicView(true);
+        setPublicAlbumId(albumId);
+        setLoading(false);
+        return; // Skip auth check for public view
+      }
+    }
+
+    // Auth state listener
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      setUser(user);
       setLoading(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
 
@@ -29,12 +42,12 @@ const App: React.FC = () => {
       </div>
     );
   }
+  
+  if (isPublicView && publicAlbumId) {
+    return <PublicAlbumView albumId={publicAlbumId} />;
+  }
 
-  return (
-    <div className="min-h-screen bg-gray-900">
-      {user ? <Gallery /> : <Login />}
-    </div>
-  );
+  return user ? <Gallery /> : <Login />;
 };
 
 export default App;

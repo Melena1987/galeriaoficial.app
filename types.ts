@@ -12,8 +12,8 @@ export interface Album {
 export interface Photo {
   id: string;
   albumId: string;
+  userId: string;
   url: string;
   fileName: string;
   createdAt: firebase.firestore.Timestamp;
-  userId: string;
 }
