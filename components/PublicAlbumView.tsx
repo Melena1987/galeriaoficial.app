@@ -16,49 +16,46 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    const fetchAlbumAndPhotos = async () => {
-      setLoading(true);
-      setError(null);
+    const fetchAlbumData = async () => {
       try {
-        // Fetch album details
-        const albumDoc = await db.collection('albums').doc(albumId).get();
-        if (!albumDoc.exists) {
-          throw new Error("Álbum no encontrado o no es público.");
+        setLoading(true);
+        setError(null);
+        const albumRef = db.collection('albums').doc(albumId);
+        const albumDoc = await albumRef.get();
+
+        if (!albumDoc.exists || !albumDoc.data()?.isPublic) {
+          setError('Este álbum no existe o no es público.');
+          setLoading(false);
+          return;
         }
+
         setAlbum({ id: albumDoc.id, ...albumDoc.data() } as Album);
 
-        // Fetch photos for the album
         const photosSnapshot = await db.collection('photos')
           .where('albumId', '==', albumId)
           .orderBy('createdAt', 'desc')
           .get();
         
-        const photosData = photosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Photo));
-        setPhotos(photosData);
-
-      } catch (err: any) {
-        console.error("Error fetching public album:", err);
-        setError(err.message || "No se pudo cargar el álbum.");
+        const albumPhotos: Photo[] = photosSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        } as Photo));
+        setPhotos(albumPhotos);
+      } catch (e) {
+        console.error("Error fetching public album:", e);
+        setError('Ocurrió un error al cargar el álbum.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAlbumAndPhotos();
+    fetchAlbumData();
   }, [albumId]);
   
-  const handleNextLightbox = () => {
-    if (lightboxIndex !== null) {
-      setLightboxIndex((lightboxIndex + 1) % photos.length);
-    }
-  };
-
-  const handlePrevLightbox = () => {
-    if (lightboxIndex !== null) {
-      setLightboxIndex((lightboxIndex - 1 + photos.length) % photos.length);
-    }
-  };
-
+  const openLightbox = (index: number) => setLightboxIndex(index);
+  const closeLightbox = () => setLightboxIndex(null);
+  const nextPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev + 1) % photos.length));
+  const prevPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev - 1 + photos.length) % photos.length));
 
   if (loading) {
     return (
@@ -70,55 +67,49 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen text-center text-red-400 bg-gray-900">
-        <h2 className="text-2xl font-bold">Error</h2>
-        <p>{error}</p>
+      <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900">
+        <h2 className="mb-4 text-2xl">Error</h2>
+        <p className="text-gray-400">{error}</p>
       </div>
     );
   }
 
   return (
-    <>
-      <header className="sticky top-0 z-10 w-full bg-gray-800/80 backdrop-blur-sm shadow-md">
-        <div className="container flex items-center justify-between h-16 px-4 mx-auto md:px-6 lg:px-8">
-          <h1 className="text-xl font-bold tracking-wider text-white uppercase">
-            GaleríaOficial.app by Manu
-          </h1>
-        </div>
+    <div className="min-h-screen bg-gray-900 text-white">
+      <header className="py-4 text-center bg-gray-800">
+        <h1 className="text-3xl font-bold">{album?.name}</h1>
+        <p className="text-gray-400">{album?.description}</p>
       </header>
-      <main className="min-h-screen text-white bg-gray-900">
-          <div className="container p-4 mx-auto md:p-6 lg:p-8">
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold">{album?.name}</h2>
-              <p className="mt-1 text-gray-400">{album?.description}</p>
-            </div>
-
-            {photos.length > 0 ? (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                    {photos.map((photo, index) => (
-                        <div key={photo.id} className="overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg group aspect-w-1 aspect-h-1" onClick={() => setLightboxIndex(index)}>
-                            <img src={photo.url} alt={photo.fileName} className="object-cover w-full h-full cursor-pointer" />
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="py-20 text-center text-gray-500 border-2 border-dashed rounded-lg border-gray-700">
-                    <p className="text-lg">Este álbum no tiene fotos.</p>
-                </div>
-            )}
+      <main className="container p-4 mx-auto md:p-6">
+        {photos.length === 0 ? (
+          <div className="py-20 text-center text-gray-400">
+            <p>Este álbum no tiene fotos todavía.</p>
           </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {photos.map((photo, index) => (
+              <div 
+                key={photo.id}
+                className="overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg cursor-pointer aspect-square hover:scale-105"
+                onClick={() => openLightbox(index)}
+              >
+                 <img src={photo.url} alt={photo.fileName} className="object-cover w-full h-full" />
+              </div>
+            ))}
+          </div>
+        )}
       </main>
-      
+
       {lightboxIndex !== null && (
-        <Lightbox
-          photos={photos}
-          currentIndex={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
-          onNext={handleNextLightbox}
-          onPrev={handlePrevLightbox}
+        <Lightbox 
+          photos={photos} 
+          currentIndex={lightboxIndex} 
+          onClose={closeLightbox}
+          onNext={nextPhoto}
+          onPrev={prevPhoto}
         />
       )}
-    </>
+    </div>
   );
 };
 

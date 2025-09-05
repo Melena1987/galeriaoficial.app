@@ -1,29 +1,36 @@
 import React from 'react';
-// FIX: Removed unused v9 modular import. The v8 API uses a method on the auth object.
 import { auth } from '../services/firebase';
 
 const Header: React.FC = () => {
-  const handleLogout = async () => {
-    try {
-      // FIX: Use auth.signOut() for the v8 API.
-      await auth.signOut();
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+  const user = auth.currentUser;
+
+  const handleLogout = () => {
+    auth.signOut();
   };
 
   return (
-    <header className="sticky top-0 z-10 w-full bg-gray-800/80 backdrop-blur-sm shadow-md">
-      <div className="container flex items-center justify-between h-16 px-4 mx-auto md:px-6 lg:px-8">
-        <h1 className="text-xl font-bold tracking-wider text-white uppercase">
-          GaleríaOficial.app by Manu
-        </h1>
-        <button
-          onClick={handleLogout}
-          className="px-4 py-2 text-sm font-medium text-white transition-colors bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 focus:ring-offset-gray-800"
-        >
-          Cerrar Sesión
-        </button>
+    <header className="sticky top-0 z-40 w-full bg-slate-800/50 backdrop-blur-lg border-b border-slate-700">
+      <div className="container flex items-center justify-between p-4 mx-auto">
+        <div className="text-center">
+          <h1 className="text-xl font-extrabold tracking-wider text-transparent uppercase bg-clip-text bg-gradient-to-r from-slate-200 to-slate-400">
+              GALERÍAOFICIAL.APP
+          </h1>
+          <p className="text-xs font-light tracking-widest text-slate-400">BY MANU</p>
+        </div>
+        {user && (
+          <div className="flex items-center gap-4">
+            <span className="hidden text-sm text-slate-300 sm:block">Hola, {user.displayName || user.email?.split('@')[0]}</span>
+            <button
+              onClick={handleLogout}
+              className="p-2 transition-colors rounded-full text-slate-400 hover:bg-rose-500/20 hover:text-rose-400"
+              aria-label="Cerrar Sesión"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

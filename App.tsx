@@ -12,46 +12,54 @@ const App: React.FC = () => {
   const [publicAlbumId, setPublicAlbumId] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleHashChange = () => {
-      const path = window.location.hash.substring(1); // from '#/public/album/...' to '/public/album/...'
+    const getAlbumIdFromHash = () => {
+      const path = window.location.hash.substring(1);
       if (path.startsWith('/public/album/')) {
         const parts = path.split('/');
-        const albumId = parts[3];
-        if (albumId) {
-          setPublicAlbumId(albumId);
-          // If we are showing a public album, we don't need the user state.
-          // Set loading to false directly.
-          if (loading) setLoading(false);
-        }
-      } else {
-        setPublicAlbumId(null);
+        return parts[3] || null;
       }
+      return null;
     };
-
+    
+    const handleHashChange = () => {
+      const albumId = getAlbumIdFromHash();
+      setPublicAlbumId(albumId);
+    };
+    
     // Initial check
     handleHashChange();
-
+    
     // Listen for hash changes
     window.addEventListener('hashchange', handleHashChange);
     
-    // Auth state listener only runs if not a public view initially
-    let unsubscribe: firebase.Unsubscribe = () => {};
-    if (!publicAlbumId) {
-        unsubscribe = auth.onAuthStateChanged(user => {
-            setUser(user);
-            setLoading(false);
-        });
-    }
-
     return () => {
-        window.removeEventListener('hashchange', handleHashChange);
-        unsubscribe();
+      window.removeEventListener('hashchange', handleHashChange);
     };
-  }, []);
+  }, []); // This effect only sets up hash listening.
+
+  useEffect(() => {
+    // This effect reacts to publicAlbumId changes and manages auth state.
+    setLoading(true);
+    let unsubscribe: firebase.Unsubscribe = () => {};
+
+    if (publicAlbumId) {
+      // Public view, no auth needed, just stop loading.
+      setUser(null); // Ensure user is logged out for public view
+      setLoading(false);
+    } else {
+      // Private view, set up auth listener.
+      unsubscribe = auth.onAuthStateChanged(user => {
+        setUser(user);
+        setLoading(false);
+      });
+    }
+    
+    return () => unsubscribe();
+  }, [publicAlbumId]); // Re-run when we switch between public and private views.
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
+      <div className="flex items-center justify-center min-h-screen bg-slate-900">
         <Spinner />
       </div>
     );
