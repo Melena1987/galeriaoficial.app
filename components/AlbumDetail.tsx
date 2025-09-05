@@ -21,9 +21,12 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
   const isAdmin = user?.email === 'manudesignsforyou@gmail.com';
 
   useEffect(() => {
+    if (!user) return;
+    
     setLoading(true);
     const unsubscribe = db.collection('photos')
       .where('albumId', '==', album.id)
+      .where('userId', '==', user.uid)
       .orderBy('createdAt', 'desc')
       .onSnapshot(snapshot => {
         const albumPhotos: Photo[] = snapshot.docs.map(doc => ({
@@ -38,7 +41,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
       });
 
     return () => unsubscribe();
-  }, [album.id]);
+  }, [album.id, user]);
   
   const handleToggleSelect = (photoId: string) => {
     setSelectedPhotos(prev => 
@@ -94,7 +97,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
 
 
   const handleDeletePhoto = async (photo: Photo) => {
-    if (!window.confirm("Are you sure you want to delete this photo?")) return;
+    if (!window.confirm("¿Estás seguro de que quieres eliminar esta foto?")) return;
     try {
       // Delete from storage
       const photoRef = storage.refFromURL(photo.url);
@@ -118,7 +121,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
 
     } catch (error) {
       console.error("Error deleting photo:", error);
-      alert("Failed to delete photo.");
+      alert("Error al eliminar la foto.");
     }
   };
 

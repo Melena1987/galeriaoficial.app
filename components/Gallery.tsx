@@ -66,15 +66,22 @@ const Gallery: React.FC = () => {
       setCreateModalOpen(false);
     } catch (error) {
       console.error("Error creating album:", error);
-      alert("Failed to create album.");
+      alert("Error al crear el álbum.");
     }
   };
 
   const handleDeleteAlbum = async (albumId: string) => {
-    if (!window.confirm("Are you sure you want to delete this album and all its photos? This action cannot be undone.")) return;
+    if (!user) {
+      console.error("User not logged in.");
+      return;
+    }
+    if (!window.confirm("¿Estás seguro de que quieres eliminar este álbum y todas sus fotos? Esta acción no se puede deshacer.")) return;
     
     try {
-      const photosQuery = db.collection('photos').where('albumId', '==', albumId);
+      const photosQuery = db.collection('photos')
+        .where('albumId', '==', albumId)
+        .where('userId', '==', user.uid);
+      
       const photosSnapshot = await photosQuery.get();
       
       const batch = db.batch();
@@ -99,7 +106,7 @@ const Gallery: React.FC = () => {
       await db.collection('albums').doc(albumId).delete();
     } catch (error) {
         console.error("Error deleting album and its photos:", error);
-        alert("Failed to delete album.");
+        alert("Error al eliminar el álbum.");
     }
   };
   
