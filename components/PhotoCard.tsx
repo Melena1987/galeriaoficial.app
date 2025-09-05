@@ -1,4 +1,3 @@
-// FIX: Implement the PhotoCard component to display a photo thumbnail.
 import React from 'react';
 import { Photo } from '../types';
 
@@ -11,10 +10,10 @@ interface PhotoCardProps {
 
 const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin }) => {
   const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering onClick
+    e.stopPropagation(); // Prevent triggering onClick when deleting
     onDelete();
   };
-
+  
   return (
     <div 
       className="relative overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg cursor-pointer group aspect-square bg-slate-800 hover:scale-105"
@@ -23,7 +22,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin
       <img src={photo.url} alt={photo.fileName} className="object-cover w-full h-full" />
       
       {isAdmin && (
-        <div className="absolute top-0 right-0 z-10 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <button 
             onClick={handleDelete}
             className="p-1.5 text-white transition-all bg-rose-600 rounded-full hover:bg-rose-500"
@@ -35,6 +34,8 @@ const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin
           </button>
         </div>
       )}
+      
+      <div className="absolute inset-0 transition-opacity bg-black opacity-0 group-hover:opacity-30"></div>
     </div>
   );
 };
