@@ -42,8 +42,11 @@ const Login: React.FC = () => {
   return (
     <div id="login-container" className="flex items-center justify-center min-h-screen bg-gray-900">
       <div className="w-full max-w-md p-8 space-y-6 bg-gray-800 rounded-lg shadow-lg">
-        <div>
-          <h2 className="text-3xl font-extrabold text-center text-white">Iniciar Sesión</h2>
+        <div className="text-center">
+          <h1 className="text-xl font-bold tracking-wider text-white uppercase">
+            GaleríaOficial.app by Manu
+          </h1>
+          <h2 className="mt-6 text-3xl font-extrabold text-white">Iniciar Sesión</h2>
           <p className="mt-2 text-center text-gray-400">Accede a tu galería de fotos</p>
         </div>
         <form className="space-y-6" onSubmit={handleLogin}>

@@ -16,7 +16,7 @@ const Header: React.FC = () => {
     <header className="sticky top-0 z-10 w-full bg-gray-800/80 backdrop-blur-sm shadow-md">
       <div className="container flex items-center justify-between h-16 px-4 mx-auto md:px-6 lg:px-8">
         <h1 className="text-xl font-bold tracking-wider text-white uppercase">
-          galeriaoficial.app by Manu
+          GaleríaOficial.app by Manu
         </h1>
         <button
           onClick={handleLogout}
