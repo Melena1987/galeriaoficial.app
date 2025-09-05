@@ -15,7 +15,8 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  
+  const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
+
   const user = auth.currentUser;
   const isAdmin = user?.email === 'manudesignsforyou@gmail.com';
 
@@ -38,6 +39,59 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
 
     return () => unsubscribe();
   }, [album.id]);
+  
+  const handleToggleSelect = (photoId: string) => {
+    setSelectedPhotos(prev => 
+      prev.includes(photoId) 
+        ? prev.filter(id => id !== photoId) 
+        : [...prev, photoId]
+    );
+  };
+
+  const handleDeleteSelectedPhotos = async () => {
+    if (selectedPhotos.length === 0) return;
+    if (!window.confirm(`¿Estás seguro de que quieres eliminar ${selectedPhotos.length} foto(s)? Esta acción no se puede deshacer.`)) return;
+    
+    try {
+      const photosToDelete = photos.filter(p => selectedPhotos.includes(p.id));
+      
+      for (const photo of photosToDelete) {
+        try {
+          const photoRef = storage.refFromURL(photo.url);
+          await photoRef.delete();
+        } catch (storageError: any) {
+          if (storageError.code !== 'storage/object-not-found') {
+            console.error("Error deleting photo from storage:", storageError);
+          }
+        }
+      }
+
+      const batch = db.batch();
+      selectedPhotos.forEach(id => {
+        batch.delete(db.collection('photos').doc(id));
+      });
+      await batch.commit();
+
+      const deletedCoverPhoto = photosToDelete.find(p => p.url === album.coverPhotoUrl);
+      if (deletedCoverPhoto) {
+        const remainingPhotosQuery = await db.collection('photos')
+          .where('albumId', '==', album.id)
+          .orderBy('createdAt', 'desc')
+          .limit(1)
+          .get();
+        
+        const newCoverUrl = remainingPhotosQuery.docs.length > 0 ? remainingPhotosQuery.docs[0].data().url : '';
+        await db.collection('albums').doc(album.id).update({ coverPhotoUrl: newCoverUrl });
+      }
+
+      setSelectedPhotos([]);
+
+    } catch (error) {
+      console.error("Error deleting selected photos:", error);
+      alert("No se pudieron eliminar las fotos.");
+    }
+  };
+
 
   const handleDeletePhoto = async (photo: Photo) => {
     if (!window.confirm("Are you sure you want to delete this photo?")) return;
@@ -72,7 +126,8 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
   const closeLightbox = () => setLightboxIndex(null);
   const nextPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev + 1) % photos.length));
   const prevPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev - 1 + photos.length) % photos.length));
-
+  
+  const isSelectionMode = isAdmin && selectedPhotos.length > 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -92,6 +147,26 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
 
       <main className="container p-4 mx-auto md:p-6">
         {isAdmin && <UploadForm albumId={album.id} />}
+
+        {isSelectionMode && (
+          <div className="sticky top-[65px] z-10 flex items-center justify-between gap-4 p-3 mb-6 -mt-2 rounded-lg bg-slate-800/90 backdrop-blur-sm ring-1 ring-white/10">
+            <span className="font-semibold">{selectedPhotos.length} foto(s) seleccionada(s)</span>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setSelectedPhotos([])}
+                className="px-3 py-1.5 text-sm font-semibold transition-colors bg-slate-700 text-slate-300 rounded-md hover:bg-slate-600"
+              >
+                Limpiar
+              </button>
+              <button 
+                onClick={handleDeleteSelectedPhotos}
+                className="px-3 py-1.5 text-sm font-semibold text-white transition-colors bg-rose-600 rounded-md hover:bg-rose-500"
+              >
+                Eliminar Selección
+              </button>
+            </div>
+          </div>
+        )}
         
         {loading ? (
           <div className="flex justify-center py-10"><Spinner /></div>
@@ -106,9 +181,11 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
               <PhotoCard
                 key={photo.id}
                 photo={photo}
-                onClick={() => openLightbox(index)}
+                onClick={() => isSelectionMode ? handleToggleSelect(photo.id) : openLightbox(index)}
                 onDelete={() => handleDeletePhoto(photo)}
                 isAdmin={isAdmin}
+                isSelected={selectedPhotos.includes(photo.id)}
+                onSelectToggle={() => handleToggleSelect(photo.id)}
               />
             ))}
           </div>
