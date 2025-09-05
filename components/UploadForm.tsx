@@ -76,7 +76,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ album, onAlbumCreated }) => {
         throw new Error("No album ID available.");
       }
 
-      const uploadPromises = Array.from(files).map((file, index) => {
+      // FIX: Explicitly type `file` as `File` to resolve type inference issues.
+      const uploadPromises = Array.from(files).map((file: File, index) => {
         const fileId = `${Date.now()}-${file.name}`;
         const storageRef = storage.ref(`photos/${user.uid}/${targetAlbumId}/${fileId}`);
         const uploadTask = storageRef.put(file);
