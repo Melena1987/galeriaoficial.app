@@ -19,6 +19,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
   const [isShareModalOpen, setShareModalOpen] = useState(false);
   
   const user = auth.currentUser;
+  const isAdmin = user?.email === 'manudesignsforyou@gmail.com';
 
   useEffect(() => {
     if (!album) return;
@@ -40,17 +41,10 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
     if (!window.confirm(`¿Estás seguro de que quieres eliminar la foto "${photo.fileName}"?`)) return;
 
     try {
-      // Delete from Firestore
+      const photoRef = storage.refFromURL(photo.url);
+      await photoRef.delete();
       await db.collection('photos').doc(photo.id).delete();
       
-      // Delete from Storage
-      if (user) {
-        // Construct the full path to the file in storage
-        const photoRef = storage.refFromURL(photo.url);
-        await photoRef.delete();
-      }
-      
-      // Update cover photo if it was the one deleted
       const albumRef = db.collection('albums').doc(album.id);
       if (album.coverPhotoUrl === photo.url) {
         const remainingPhotos = photos.filter(p => p.id !== photo.id);
@@ -71,40 +65,42 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
+      <div className="flex items-center justify-center min-h-screen bg-slate-950">
         <Spinner />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-slate-950 text-white">
       <main className="container p-4 mx-auto md:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
-            <button onClick={onBack} className="flex items-center gap-2 mb-2 text-blue-400 hover:text-blue-300">
+            <button onClick={onBack} className="flex items-center gap-2 mb-2 text-violet-400 hover:text-violet-300">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Volver a mis álbumes
+              Volver a Mis Álbumes
             </button>
             <h1 className="text-3xl font-bold">{album.name}</h1>
-            <p className="text-gray-400">{album.description}</p>
+            <p className="text-slate-400">{album.description}</p>
           </div>
-          <button
-            onClick={() => setShareModalOpen(true)}
-            className="px-4 py-2 font-semibold text-white transition-colors bg-green-600 rounded-md hover:bg-green-700"
-          >
-            Compartir
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setShareModalOpen(true)}
+              className="px-4 py-2 font-semibold text-white transition-colors bg-green-600 rounded-md hover:bg-green-700"
+            >
+              Compartir
+            </button>
+          )}
         </div>
 
-        <UploadForm albumId={album.id} />
+        {isAdmin && <UploadForm albumId={album.id} />}
         
         {photos.length === 0 ? (
-          <div className="py-20 text-center text-gray-400">
-            <p>Este álbum está vacío.</p>
-            <p>¡Sube tu primera foto!</p>
+          <div className="py-20 text-center text-slate-500">
+            <p>Este álbum aún no tiene fotos.</p>
+            {isAdmin && <p>¡Sube la primera!</p>}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -113,7 +109,8 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
                 key={photo.id} 
                 photo={photo} 
                 onClick={() => openLightbox(index)} 
-                onDelete={() => handleDeletePhoto(photo)} 
+                onDelete={() => handleDeletePhoto(photo)}
+                isAdmin={isAdmin}
               />
             ))}
           </div>
@@ -130,11 +127,13 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
         />
       )}
 
-      <ShareModal
-        isOpen={isShareModalOpen}
-        onClose={() => setShareModalOpen(false)}
-        album={album}
-      />
+      {isAdmin && (
+        <ShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          album={album}
+        />
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 {
   "name": "galeriaoficial.app",
-  "description": "A modern, single-page photo gallery application built with React and Firebase. It features user authentication, real-time photo uploads to Firebase Storage, and a dynamic gallery display powered by Firestore.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "description": ""
 }
