@@ -7,6 +7,7 @@ export interface Album {
   createdAt: firebase.firestore.Timestamp;
   userId: string;
   coverPhotoUrl?: string;
+  isPublic?: boolean;
 }
 
 export interface Photo {

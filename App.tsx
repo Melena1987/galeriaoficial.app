@@ -9,30 +9,44 @@ import PublicAlbumView from './components/PublicAlbumView';
 const App: React.FC = () => {
   const [user, setUser] = useState<firebase.User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isPublicView, setIsPublicView] = useState(false);
   const [publicAlbumId, setPublicAlbumId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check for public album route
-    const path = window.location.pathname;
-    if (path.startsWith('/public/album/')) {
-      const parts = path.split('/');
-      const albumId = parts[3];
-      if (albumId) {
-        setIsPublicView(true);
-        setPublicAlbumId(albumId);
-        setLoading(false);
-        return; // Skip auth check for public view
+    const handleHashChange = () => {
+      const path = window.location.hash.substring(1); // from '#/public/album/...' to '/public/album/...'
+      if (path.startsWith('/public/album/')) {
+        const parts = path.split('/');
+        const albumId = parts[3];
+        if (albumId) {
+          setPublicAlbumId(albumId);
+          // If we are showing a public album, we don't need the user state.
+          // Set loading to false directly.
+          if (loading) setLoading(false);
+        }
+      } else {
+        setPublicAlbumId(null);
       }
+    };
+
+    // Initial check
+    handleHashChange();
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    
+    // Auth state listener only runs if not a public view initially
+    let unsubscribe: firebase.Unsubscribe = () => {};
+    if (!publicAlbumId) {
+        unsubscribe = auth.onAuthStateChanged(user => {
+            setUser(user);
+            setLoading(false);
+        });
     }
 
-    // Auth state listener
-    const unsubscribe = auth.onAuthStateChanged(user => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    return () => {
+        window.removeEventListener('hashchange', handleHashChange);
+        unsubscribe();
+    };
   }, []);
 
   if (loading) {
@@ -43,7 +57,7 @@ const App: React.FC = () => {
     );
   }
   
-  if (isPublicView && publicAlbumId) {
+  if (publicAlbumId) {
     return <PublicAlbumView albumId={publicAlbumId} />;
   }
 
