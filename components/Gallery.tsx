@@ -1,19 +1,26 @@
+// FIX: Re-implement the Gallery component to be a functional React component.
 import React, { useState, useEffect } from 'react';
 import { db, auth, storage } from '../services/firebase';
+import firebase from 'firebase/compat/app';
 import { Album, Photo } from '../types';
 import Header from './Header';
 import AlbumCard from './AlbumCard';
-import Modal from './Modal';
-import Spinner from './Spinner';
 import AlbumDetail from './AlbumDetail';
+import Spinner from './Spinner';
+import ShareModal from './ShareModal';
+import Modal from './Modal';
 
 const Gallery: React.FC = () => {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [newAlbumName, setNewAlbumName] = useState('');
   const [newAlbumDescription, setNewAlbumDescription] = useState('');
-  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+
+  const [albumToShare, setAlbumToShare] = useState<Album | null>(null);
+  const [isShareModalOpen, setShareModalOpen] = useState(false);
 
   const user = auth.currentUser;
   const isAdmin = user?.email === 'manudesignsforyou@gmail.com';
@@ -23,12 +30,9 @@ const Gallery: React.FC = () => {
       setLoading(false);
       return;
     }
-    // Admin sees their albums, others see nothing unless you change this query
-    const query = isAdmin 
-      ? db.collection('albums').where('userId', '==', user.uid)
-      : db.collection('albums').where('userId', '==', 'non-existent-user'); // Effectively shows no albums to non-admins
 
-    const unsubscribe = query
+    const unsubscribe = db.collection('albums')
+      .where('userId', '==', user.uid)
       .orderBy('createdAt', 'desc')
       .onSnapshot(snapshot => {
         const userAlbums: Album[] = snapshot.docs.map(doc => ({
@@ -37,109 +41,115 @@ const Gallery: React.FC = () => {
         } as Album));
         setAlbums(userAlbums);
         setLoading(false);
-      }, err => {
-        console.error("Error fetching albums: ", err);
+      }, (error) => {
+        console.error("Error fetching albums: ", error);
         setLoading(false);
       });
+
     return () => unsubscribe();
-  }, [user, isAdmin]);
+  }, [user]);
 
   const handleCreateAlbum = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAlbumName.trim() || !user) return;
-    
-    await db.collection('albums').add({
-      name: newAlbumName,
-      description: newAlbumDescription,
-      userId: user.uid,
-      createdAt: new Date(),
-      isPublic: false,
-    });
-
-    setNewAlbumName('');
-    setNewAlbumDescription('');
-    setCreateModalOpen(false);
-  };
-  
-  const handleDeleteAlbum = async (album: Album) => {
-    if (!window.confirm(`¿Estás seguro de que quieres eliminar el álbum "${album.name}" y todas sus fotos? Esta acción no se puede deshacer.`)) return;
+    if (!user || !newAlbumName.trim()) return;
 
     try {
-      // 1. Get all photos in the album
-      const photosSnapshot = await db.collection('photos').where('albumId', '==', album.id).get();
-      const photosToDelete = photosSnapshot.docs.map(doc => doc.data() as Photo);
-      
-      // 2. Delete all photo files from Storage
-      const deletePromises = photosToDelete.map(photo => storage.refFromURL(photo.url).delete());
-      await Promise.all(deletePromises);
-
-      // 3. Delete all photo documents from Firestore (in a batch)
-      const batch = db.batch();
-      photosSnapshot.docs.forEach(doc => batch.delete(doc.ref));
-      await batch.commit();
-
-      // 4. Delete the album document
-      await db.collection('albums').doc(album.id).delete();
-      
+      await db.collection('albums').add({
+        name: newAlbumName,
+        description: newAlbumDescription,
+        userId: user.uid,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        isPublic: false,
+      });
+      setNewAlbumName('');
+      setNewAlbumDescription('');
+      setCreateModalOpen(false);
     } catch (error) {
-      console.error("Error deleting album:", error);
-      alert("No se pudo eliminar el álbum.");
+      console.error("Error creating album:", error);
+      alert("Failed to create album.");
     }
   };
 
+  const handleDeleteAlbum = async (albumId: string) => {
+    if (!window.confirm("Are you sure you want to delete this album and all its photos? This action cannot be undone.")) return;
+    
+    try {
+      const photosQuery = db.collection('photos').where('albumId', '==', albumId);
+      const photosSnapshot = await photosQuery.get();
+      
+      const batch = db.batch();
 
-  const handleAlbumClick = (album: Album) => {
-    setSelectedAlbum(album);
+      for (const doc of photosSnapshot.docs) {
+          const photoData = doc.data() as Photo;
+          if (photoData.url) {
+              try {
+                  const photoRef = storage.refFromURL(photoData.url);
+                  await photoRef.delete();
+              } catch(storageError: any) {
+                  if (storageError.code !== 'storage/object-not-found') {
+                    console.error("Error deleting photo from storage:", storageError);
+                  }
+              }
+          }
+          batch.delete(doc.ref);
+      }
+
+      await batch.commit();
+      
+      await db.collection('albums').doc(albumId).delete();
+    } catch (error) {
+        console.error("Error deleting album and its photos:", error);
+        alert("Failed to delete album.");
+    }
   };
-
-  const handleBackToGallery = () => {
-    setSelectedAlbum(null);
+  
+  const handleOpenShareModal = (album: Album) => {
+    setAlbumToShare(album);
+    setShareModalOpen(true);
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950">
-        <Spinner />
-      </div>
+        <div className="flex items-center justify-center min-h-screen bg-slate-950">
+            <Spinner />
+        </div>
     );
   }
-
+  
   if (selectedAlbum) {
-    return <AlbumDetail album={selectedAlbum} onBack={handleBackToGallery} />;
+    return <AlbumDetail album={selectedAlbum} onBack={() => setSelectedAlbum(null)} />;
   }
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <Header />
       <main className="container p-4 mx-auto md:p-6">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-100">Mis Álbumes</h1>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <h1 className="text-3xl font-bold">Mis Álbumes</h1>
           {isAdmin && (
             <button
               onClick={() => setCreateModalOpen(true)}
-              className="px-4 py-2 font-semibold text-white transition-colors rounded-lg bg-violet-600 hover:bg-violet-500"
+              className="px-4 py-2 font-semibold text-white transition-colors bg-violet-600 rounded-md hover:bg-violet-700"
             >
-              + Crear Nuevo Álbum
+              Crear Álbum
             </button>
           )}
         </div>
         
         {albums.length === 0 ? (
           <div className="py-20 text-center text-slate-500">
-            <p>
-              {isAdmin 
-                ? "No tienes álbumes todavía. ¡Crea uno nuevo!" 
-                : "No hay álbumes para mostrar."}
-            </p>
+            <p>No tienes álbumes todavía.</p>
+            {isAdmin && <p>¡Crea tu primer álbum para empezar!</p>}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {albums.map(album => (
-              <AlbumCard 
-                key={album.id} 
-                album={album} 
-                onClick={() => handleAlbumClick(album)} 
-                onDelete={() => handleDeleteAlbum(album)}
+              <AlbumCard
+                key={album.id}
+                album={album}
+                onClick={() => setSelectedAlbum(album)}
+                onDelete={() => handleDeleteAlbum(album.id)}
+                onShare={() => handleOpenShareModal(album)}
                 isAdmin={isAdmin}
               />
             ))}
@@ -148,11 +158,54 @@ const Gallery: React.FC = () => {
       </main>
 
       {isAdmin && (
-        <Modal isOpen={isCreateModalOpen} onClose={() => setCreateModalOpen(false)} title="Crear Nuevo Álbum">
+        <Modal
+          isOpen={isCreateModalOpen}
+          onClose={() => setCreateModalOpen(false)}
+          title="Crear Nuevo Álbum"
+        >
           <form onSubmit={handleCreateAlbum}>
-            {/* Form content remains the same */}
+              <div className="mb-4">
+                  <label htmlFor="albumName" className="block mb-2 text-sm font-medium text-gray-300">Nombre del Álbum</label>
+                  <input
+                      type="text"
+                      id="albumName"
+                      value={newAlbumName}
+                      onChange={(e) => setNewAlbumName(e.target.value)}
+                      className="w-full px-3 py-2 text-gray-300 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      required
+                  />
+              </div>
+              <div className="mb-6">
+                  <label htmlFor="albumDescription" className="block mb-2 text-sm font-medium text-gray-300">Descripción (opcional)</label>
+                  <textarea
+                      id="albumDescription"
+                      value={newAlbumDescription}
+                      onChange={(e) => setNewAlbumDescription(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 text-gray-300 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  />
+              </div>
+              <div className="flex justify-end gap-4 mt-6">
+                  <button type="button" onClick={() => setCreateModalOpen(false)} className="px-4 py-2 text-gray-300 transition-colors bg-gray-600 rounded-md hover:bg-gray-500">
+                      Cancelar
+                  </button>
+                  <button type="submit" className="px-4 py-2 font-semibold text-white transition-colors bg-violet-600 rounded-md hover:bg-violet-700">
+                      Crear
+                  </button>
+              </div>
           </form>
         </Modal>
+      )}
+      
+      {isAdmin && albumToShare && (
+        <ShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => {
+            setShareModalOpen(false);
+            setAlbumToShare(null);
+          }}
+          album={albumToShare}
+        />
       )}
     </div>
   );

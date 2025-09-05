@@ -5,13 +5,19 @@ interface AlbumCardProps {
   album: Album;
   onClick: () => void;
   onDelete: () => void;
+  onShare: () => void;
   isAdmin: boolean;
 }
 
-const AlbumCard: React.FC<AlbumCardProps> = ({ album, onClick, onDelete, isAdmin }) => {
+const AlbumCard: React.FC<AlbumCardProps> = ({ album, onClick, onDelete, onShare, isAdmin }) => {
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete();
+  };
+
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onShare();
   };
 
   return (
@@ -20,15 +26,26 @@ const AlbumCard: React.FC<AlbumCardProps> = ({ album, onClick, onDelete, isAdmin
       onClick={onClick}
     >
       {isAdmin && (
-         <button 
-          onClick={handleDelete}
-          className="absolute top-2 right-2 z-10 p-1.5 text-white transition-all bg-rose-600 rounded-full opacity-0 group-hover:opacity-100 hover:bg-rose-500"
-          aria-label="Eliminar álbum"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
+         <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100">
+          <button 
+            onClick={handleShare}
+            className="p-1.5 text-white transition-all bg-violet-600 rounded-full hover:bg-violet-500"
+            aria-label="Compartir álbum"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 112.632-3.001M2.062 12a3 3 0 113.001-2.632A3 3 0 012.062 12zm13.372-3.001a3 3 0 102.632-3.001 3 3 0 00-2.632 3.001z" />
+            </svg>
+          </button>
+          <button 
+            onClick={handleDelete}
+            className="p-1.5 text-white transition-all bg-rose-600 rounded-full hover:bg-rose-500"
+            aria-label="Eliminar álbum"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       )}
       <div className="relative w-full h-48">
         {album.coverPhotoUrl ? (
