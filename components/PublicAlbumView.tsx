@@ -15,6 +15,26 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
   const [error, setError] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
+  const generateThumbnailUrl = (url: string | undefined): string => {
+    if (!url) return '';
+    try {
+      const urlParts = url.split('?');
+      const baseUrl = urlParts[0];
+      const queryString = urlParts.length > 1 ? `?${urlParts[1]}` : '';
+      // This regex finds the last dot and captures the extension.
+      // It inserts '_400x400' before the extension.
+      const thumbnailBaseUrl = baseUrl.replace(/(\.[^./\\]+)$/, '_400x400$1');
+      // If no replacement happened (e.g., no extension), return original.
+      if (thumbnailBaseUrl === baseUrl) {
+        return url;
+      }
+      return thumbnailBaseUrl + queryString;
+    } catch (e) {
+      console.error("Error generating thumbnail URL:", e);
+      return url; // Fallback to original URL on error
+    }
+  };
+
   useEffect(() => {
     const fetchAlbumAndPhotos = async () => {
       setLoading(true);
@@ -109,7 +129,7 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
                 className="relative overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg cursor-pointer aspect-square hover:scale-105"
                 onClick={() => openLightbox(index)}
               >
-                <img src={photo.url} alt={photo.fileName} className="object-cover w-full h-full" />
+                <img src={generateThumbnailUrl(photo.url)} alt={photo.fileName} className="object-cover w-full h-full" />
               </div>
             ))}
           </div>

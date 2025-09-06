@@ -10,6 +10,26 @@ interface PhotoCardProps {
   onSelectToggle: () => void;
 }
 
+const generateThumbnailUrl = (url: string | undefined): string => {
+  if (!url) return '';
+  try {
+    const urlParts = url.split('?');
+    const baseUrl = urlParts[0];
+    const queryString = urlParts.length > 1 ? `?${urlParts[1]}` : '';
+    // This regex finds the last dot and captures the extension.
+    // It inserts '_400x400' before the extension.
+    const thumbnailBaseUrl = baseUrl.replace(/(\.[^./\\]+)$/, '_400x400$1');
+    // If no replacement happened (e.g., no extension), return original.
+    if (thumbnailBaseUrl === baseUrl) {
+      return url;
+    }
+    return thumbnailBaseUrl + queryString;
+  } catch (e) {
+    console.error("Error generating thumbnail URL:", e);
+    return url; // Fallback to original URL on error
+  }
+};
+
 const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin, isSelected, onSelectToggle }) => {
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -42,7 +62,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin
         </button>
       )}
 
-      <img src={photo.url} alt={photo.fileName} className={`object-cover w-full h-full transition-opacity ${isSelected ? 'opacity-60' : ''}`} />
+      <img src={generateThumbnailUrl(photo.url)} alt={photo.fileName} className={`object-cover w-full h-full transition-opacity ${isSelected ? 'opacity-60' : ''}`} />
       
       {isAdmin && (
         <button
