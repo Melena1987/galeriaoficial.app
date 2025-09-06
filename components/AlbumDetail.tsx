@@ -15,7 +15,8 @@ interface AlbumDetailProps {
 
 type SortOrder = 'newest' | 'oldest' | 'name_asc' | 'name_desc';
 
-const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
+const AlbumDetail: React.FC<AlbumDetailProps> = ({ album: initialAlbum, onBack }) => {
+  const [album, setAlbum] = useState<Album>(initialAlbum);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -25,6 +26,19 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
 
   const user = auth.currentUser;
   const isAdmin = user?.email === 'manudesignsforyou@gmail.com';
+
+  useEffect(() => {
+    const unsubscribe = db.collection('albums').doc(album.id)
+      .onSnapshot(doc => {
+        if (doc.exists) {
+          setAlbum({ id: doc.id, ...doc.data() } as Album);
+        }
+      }, (error) => {
+        console.error("Error fetching album updates:", error);
+      });
+    return () => unsubscribe();
+  }, [album.id]);
+
 
   useEffect(() => {
     if (!user) return;
@@ -166,6 +180,18 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
     }
   };
 
+  const handleSetCoverPhoto = async (photo: Photo) => {
+    if (!album.id || !photo.url) return;
+    try {
+      await db.collection('albums').doc(album.id).update({
+        coverPhotoUrl: photo.url,
+      });
+    } catch (error) {
+      console.error("Error setting cover photo:", error);
+      alert("No se pudo establecer la foto de portada.");
+    }
+  };
+
   const handleDownloadAlbum = async () => {
     if (photos.length === 0) {
       alert("Este álbum está vacío, no hay nada que descargar.");
@@ -233,7 +259,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
         <div className="container flex items-center justify-between h-full gap-4 mx-auto px-4 md:px-6">
           <div className="flex items-center min-w-0">
             <button onClick={onBack} className="flex-shrink-0 p-2 -ml-2 rounded-full hover:bg-slate-800">
-              <svg xmlns="http://www.w.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
@@ -314,6 +340,8 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
                 isAdmin={isAdmin}
                 isSelected={selectedPhotos.includes(photo.id)}
                 onSelectToggle={() => handleToggleSelect(photo.id)}
+                onSetCover={() => handleSetCoverPhoto(photo)}
+                isCover={album.coverPhotoUrl === photo.url}
               />
             ))}
           </div>
