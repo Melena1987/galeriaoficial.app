@@ -4,6 +4,7 @@ import { Album, Photo } from '../types';
 import Lightbox from './Lightbox';
 import Spinner from './Spinner';
 import LazyImage from './LazyImage';
+import { getThumbnailUrl } from '../utils/image';
 
 interface PublicAlbumViewProps {
   albumId: string;
@@ -153,7 +154,7 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
                 onClick={() => openLightbox(index)}
               >
                 <LazyImage
-                  src={photo.url}
+                  src={getThumbnailUrl(photo.url)}
                   alt={photo.fileName}
                   className="object-cover w-full h-full"
                 />

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Photo } from '../types';
 import LazyImage from './LazyImage';
+import { getThumbnailUrl } from '../utils/image';
 
 interface PhotoCardProps {
   photo: Photo;
@@ -44,7 +45,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin
       )}
 
       <LazyImage
-        src={photo.url}
+        src={getThumbnailUrl(photo.url)}
         alt={photo.fileName}
         className={`object-cover w-full h-full transition-opacity ${isSelected ? 'opacity-60' : ''}`}
       />

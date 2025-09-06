@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 interface LazyImageProps {
-  src: string;
+  src?: string; // src es ahora opcional para mayor robustez
   alt: string;
   className: string;
   placeholderClassName?: string;
@@ -12,18 +12,21 @@ const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className, placeholderC
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Si no hay src, no hay nada que observar o cargar.
+    if (!src) return;
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setIsLoaded(true);
-          // Once loaded, we don't need to observe it anymore
+          // Una vez cargado, dejamos de observar.
           if (ref.current) {
             observer.unobserve(ref.current);
           }
         }
       },
       {
-        rootMargin: '100px 0px', // Start loading images 100px before they enter the viewport
+        rootMargin: '100px 0px', // Empezar a cargar imágenes 100px antes de que entren en el viewport.
       }
     );
 
@@ -33,18 +36,19 @@ const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className, placeholderC
 
     return () => {
       if (ref.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         observer.unobserve(ref.current);
       }
     };
-  }, []); // Empty dependency array ensures this effect runs only once
+  }, [src]); // Dependemos de src para re-evaluar si cambia.
 
-  if (isLoaded) {
-    return <img src={src} alt={alt} className={className} decoding="async" />;
+  // Si no hay src o todavía no se ha cargado, mostramos el placeholder.
+  if (!isLoaded || !src) {
+    return <div ref={ref} className={`${className} ${placeholderClassName}`} aria-label={alt} />;
   }
 
-  // The placeholder must have the same layout properties as the final image
-  // to prevent content layout shift.
-  return <div ref={ref} className={`${className} ${placeholderClassName}`} aria-label={alt} />;
+  // Una vez que el observer da la señal, renderizamos la imagen real.
+  return <img src={src} alt={alt} className={className} decoding="async" />;
 };
 
 export default LazyImage;
