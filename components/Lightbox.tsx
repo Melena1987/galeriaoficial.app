@@ -17,6 +17,8 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
   const [isSharing, setIsSharing] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchDeltaX, setTouchDeltaX] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
 
   const currentPhoto = photos[currentIndex];
 
@@ -34,6 +36,9 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
   }, [currentPhoto]);
 
   useEffect(() => {
+    // Bloquear el scroll del body cuando el Lightbox está abierto
+    document.body.style.overflow = 'hidden';
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowRight') onNext();
@@ -41,7 +46,10 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
     };
 
     window.addEventListener('keydown', handleKeyDown);
+    
+    // Restaurar el scroll cuando el Lightbox se cierra
     return () => {
+      document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose, onNext, onPrev]);
@@ -51,47 +59,22 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
   const handleShare = async () => {
     if (isSharing || !currentPhoto) return;
     setIsSharing(true);
-
     const { url, fileName } = currentPhoto;
-
-    // This is the most robust method to force a download for cross-origin images.
-    // It works by fetching the image data, creating a temporary local representation (a "blob"),
-    // and then triggering a download for that local data.
     try {
-      // 1. Fetch the image data. The server (Firebase Storage) MUST be configured with
-      //    CORS headers to allow requests from this web app's origin.
       const response = await fetch(url);
-
-      if (!response.ok) {
-        // If the response is not ok (e.g., 404 Not Found, 403 Forbidden), throw an error.
-        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
-      }
-
-      // 2. Convert the response into a blob (binary large object).
+      if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
       const blob = await response.blob();
-
-      // 3. Create a temporary, local URL for the blob.
       const blobUrl = window.URL.createObjectURL(blob);
-
-      // 4. Create a hidden link element.
       const link = document.createElement('a');
       link.style.display = 'none';
       link.href = blobUrl;
-      link.download = fileName; // This attribute tells the browser to download the file.
-
-      // 5. Add the link to the document, click it, and then remove it.
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // 6. Clean up by revoking the temporary URL to free memory.
       window.URL.revokeObjectURL(blobUrl);
-
     } catch (error) {
-      console.error('Download failed due to an error:', error);
-      // If the fetch failed (likely due to a CORS issue which is very common),
-      // the ONLY remaining option is to open the image in a new tab.
-      // This allows the user to manually save it. It's the best possible fallback.
+      console.error('Download failed:', error);
       alert('No se pudo iniciar la descarga directa. Se abrirá la imagen en una nueva pestaña para que puedas guardarla manualmente.');
       window.open(url, '_blank', 'noopener,noreferrer');
     } finally {
@@ -99,9 +82,10 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
     }
   };
 
-
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (isAnimatingOut) return;
     setTouchStartX(e.touches[0].clientX);
+    setIsSwiping(true);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -111,18 +95,30 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
 
   const handleTouchEnd = () => {
     if (touchStartX === null) return;
-    
-    const swipeThreshold = 50; // Min distance in pixels to be a swipe
+    setIsSwiping(false);
+    const swipeThreshold = 50;
     if (Math.abs(touchDeltaX) > swipeThreshold) {
-      if (touchDeltaX < 0) { // Swiped left
-        onNext();
-      } else { // Swiped right
-        onPrev();
-      }
+      setIsAnimatingOut(true);
+    } else {
+      setTouchDeltaX(0);
     }
-    
     setTouchStartX(null);
+  };
+  
+  const handleTransitionEnd = (e: React.TransitionEvent) => {
+    if (e.propertyName !== 'transform' || !isAnimatingOut) return;
+    if (touchDeltaX < 0) {
+      onNext();
+    } else {
+      onPrev();
+    }
+    setIsAnimatingOut(false);
     setTouchDeltaX(0);
+  };
+
+  const imageContainerStyle: React.CSSProperties = {
+    transform: `translateX(${isAnimatingOut ? (touchDeltaX < 0 ? '-100vw' : '100vw') : touchDeltaX}px)`,
+    transition: isSwiping ? 'none' : 'transform 0.3s ease-out',
   };
 
   return (
@@ -159,10 +155,8 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        style={{
-          transform: `translateX(${touchDeltaX}px)`,
-          transition: touchStartX === null ? 'transform 0.2s ease-out' : 'none',
-        }}
+        onTransitionEnd={handleTransitionEnd}
+        style={imageContainerStyle}
         draggable="false"
       >
         {/* Thumbnail - acts as a blurry placeholder */}
