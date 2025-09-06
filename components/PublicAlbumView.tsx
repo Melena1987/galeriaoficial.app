@@ -15,23 +15,62 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
   const [error, setError] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
+  useEffect(() => {
+    // This effect updates the document's head to reflect the current album's details.
+    if (album) {
+      const defaultTitle = 'GaleríaOficial.app by Manu';
+      const newTitle = `${album.name} | GaleríaOficial.app`;
+      const description = album.description || `Mira las fotos del álbum "${album.name}".`;
+      // Use the full-resolution cover photo for the best preview quality.
+      const imageUrl = album.coverPhotoUrl || 'https://images.unsplash.com/photo-1593011033254-2158da848318?q=80&w=1200&h=630&auto=format&fit=crop';
+
+      document.title = newTitle;
+
+      const updateMetaTag = (selector: string, content: string) => {
+        const element = document.querySelector(selector) as HTMLMetaElement | null;
+        if (element) {
+          element.content = content;
+        }
+      };
+      
+      updateMetaTag('meta[name="description"]', description);
+      updateMetaTag('meta[property="og:title"]', newTitle);
+      updateMetaTag('meta[property="og:description"]', description);
+      updateMetaTag('meta[property="og:image"]', imageUrl);
+      updateMetaTag('meta[property="twitter:title"]', newTitle);
+      updateMetaTag('meta[property="twitter:description"]', description);
+      updateMetaTag('meta[property="twitter:image"]', imageUrl);
+
+      // Cleanup function to reset meta tags when the component unmounts
+      return () => {
+        document.title = defaultTitle;
+        // Resetting to default values from index.html
+        updateMetaTag('meta[name="description"]', 'Crea, gestiona y comparte álbumes de fotos con un diseño profesional y minimalista.');
+        updateMetaTag('meta[property="og:title"]', 'GaleríaOficial.app by Manu');
+        updateMetaTag('meta[property="og:description"]', 'Crea, gestiona y comparte álbumes de fotos con un diseño profesional y minimalista.');
+        updateMetaTag('meta[property="og:image"]', 'https://images.unsplash.com/photo-1593011033254-2158da848318?q=80&w=1200&h=630&auto=format&fit=crop');
+        updateMetaTag('meta[property="twitter:title"]', 'GaleríaOficial.app by Manu');
+        updateMetaTag('meta[property="twitter:description"]', 'Crea, gestiona y comparte álbumes de fotos con un diseño profesional y minimalista.');
+        updateMetaTag('meta[property="twitter:image"]', 'https://images.unsplash.com/photo-1593011033254-2158da848318?q=80&w=1200&h=630&auto=format&fit=crop');
+      };
+    }
+  }, [album]);
+
+
   const generateThumbnailUrl = (url: string | undefined): string => {
     if (!url) return '';
     try {
       const urlParts = url.split('?');
       const baseUrl = urlParts[0];
       const queryString = urlParts.length > 1 ? `?${urlParts[1]}` : '';
-      // This regex finds the last dot and captures the extension.
-      // It inserts '_400x400' before the extension.
       const thumbnailBaseUrl = baseUrl.replace(/(\.[^./\\]+)$/, '_400x400$1');
-      // If no replacement happened (e.g., no extension), return original.
       if (thumbnailBaseUrl === baseUrl) {
         return url;
       }
       return thumbnailBaseUrl + queryString;
     } catch (e) {
       console.error("Error generating thumbnail URL:", e);
-      return url; // Fallback to original URL on error
+      return url;
     }
   };
 
@@ -88,7 +127,7 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-900">
+      <div className="flex items-center justify-center min-h-screen bg-slate-950">
         <Spinner />
       </div>
     );
@@ -96,29 +135,29 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white">
-        <h1 className="text-2xl font-bold text-red-500">Error</h1>
+      <div className="flex flex-col items-center justify-center min-h-screen text-white bg-slate-950">
+        <h1 className="text-2xl font-bold text-rose-500">Error</h1>
         <p className="mt-2 text-lg">{error}</p>
-        <a href="/" className="px-4 py-2 mt-4 font-semibold text-white transition-colors bg-blue-600 rounded-md hover:bg-blue-700">
+        <a href={window.location.origin} className="px-4 py-2 mt-4 font-semibold text-white transition-colors rounded-md bg-violet-600 hover:bg-violet-700">
           Volver a la página principal
         </a>
       </div>
     );
   }
 
-  if (!album) return null; // Should be handled by loading/error states
+  if (!album) return null;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <header className="p-4 bg-gray-800 shadow-md">
+    <div className="min-h-screen bg-slate-950 text-white">
+      <header className="p-4 shadow-md bg-slate-900/75 backdrop-blur-lg ring-1 ring-white/10">
         <div className="container mx-auto">
           <h1 className="text-3xl font-bold">{album.name}</h1>
-          <p className="text-gray-400">{album.description}</p>
+          <p className="text-slate-400">{album.description}</p>
         </div>
       </header>
       <main className="container p-4 mx-auto md:p-6">
         {photos.length === 0 ? (
-          <div className="py-20 text-center text-gray-400">
+          <div className="py-20 text-center text-slate-500">
             <p>Este álbum está vacío.</p>
           </div>
         ) : (
@@ -126,10 +165,11 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
             {photos.map((photo, index) => (
               <div 
                 key={photo.id} 
-                className="relative overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg cursor-pointer aspect-square hover:scale-105"
+                className="relative overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg cursor-pointer group bg-slate-800 aspect-square hover:scale-105"
                 onClick={() => openLightbox(index)}
               >
                 <img src={generateThumbnailUrl(photo.url)} alt={photo.fileName} className="object-cover w-full h-full" />
+                 <div className="absolute inset-0 transition-opacity duration-300 opacity-0 group-hover:opacity-100 bg-black/40"></div>
               </div>
             ))}
           </div>
