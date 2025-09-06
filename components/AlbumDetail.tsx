@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db, storage, auth } from '../services/firebase';
 import { Album, Photo } from '../types';
 import UploadForm from './UploadForm';
@@ -13,12 +13,15 @@ interface AlbumDetailProps {
   onBack: () => void;
 }
 
+type SortOrder = 'newest' | 'oldest' | 'name_asc' | 'name_desc';
+
 const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
 
   const user = auth.currentUser;
   const isAdmin = user?.email === 'manudesignsforyou@gmail.com';
@@ -30,7 +33,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
     const unsubscribe = db.collection('photos')
       .where('albumId', '==', album.id)
       .where('userId', '==', user.uid)
-      .orderBy('createdAt', 'desc')
+      .orderBy('createdAt', 'desc') // Always fetch newest first
       .onSnapshot(snapshot => {
         const albumPhotos: Photo[] = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -45,6 +48,41 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
 
     return () => unsubscribe();
   }, [album.id, user]);
+
+  const sortedPhotos = useMemo(() => {
+    const sortablePhotos = [...photos];
+    switch (sortOrder) {
+      case 'oldest':
+        return sortablePhotos.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+      case 'name_asc':
+        return sortablePhotos.sort((a, b) => a.fileName.localeCompare(b.fileName));
+      case 'name_desc':
+        return sortablePhotos.sort((a, b) => b.fileName.localeCompare(a.fileName));
+      case 'newest':
+      default:
+        // Firestore already provides this order, but sorting ensures consistency if source changes.
+        return sortablePhotos.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+    }
+  }, [photos, sortOrder]);
+
+  const handleSortChange = () => {
+    setSortOrder(currentOrder => {
+      if (currentOrder === 'newest') return 'oldest';
+      if (currentOrder === 'oldest') return 'name_asc';
+      if (currentOrder === 'name_asc') return 'name_desc';
+      return 'newest'; // Cycle back to newest
+    });
+  };
+
+  const getSortTooltip = (): string => {
+    switch (sortOrder) {
+      case 'newest': return 'Ordenar por: Más antiguas';
+      case 'oldest': return 'Ordenar por: Nombre (A-Z)';
+      case 'name_asc': return 'Ordenar por: Nombre (Z-A)';
+      case 'name_desc': return 'Ordenar por: Más recientes';
+      default: return 'Ordenar fotos';
+    }
+  };
   
   const handleToggleSelect = (photoId: string) => {
     setSelectedPhotos(prev => 
@@ -184,8 +222,8 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
 
   const openLightbox = (index: number) => setLightboxIndex(index);
   const closeLightbox = () => setLightboxIndex(null);
-  const nextPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev + 1) % photos.length));
-  const prevPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev - 1 + photos.length) % photos.length));
+  const nextPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev + 1) % sortedPhotos.length));
+  const prevPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev - 1 + sortedPhotos.length) % sortedPhotos.length));
   
   const isSelectionMode = isAdmin && selectedPhotos.length > 0;
 
@@ -195,7 +233,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
         <div className="container flex items-center justify-between h-full gap-4 mx-auto px-4 md:px-6">
           <div className="flex items-center min-w-0">
             <button onClick={onBack} className="flex-shrink-0 p-2 -ml-2 rounded-full hover:bg-slate-800">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
@@ -206,7 +244,16 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
           </div>
           
           {isAdmin && photos.length > 0 && (
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 flex items-center gap-2">
+              <button
+                onClick={handleSortChange}
+                className="flex items-center justify-center p-2 text-slate-400 transition-colors rounded-full hover:bg-slate-800 hover:text-white"
+                title={getSortTooltip()}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+                </svg>
+              </button>
               <button
                 onClick={handleDownloadAlbum}
                 disabled={isDownloading}
@@ -258,7 +305,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {photos.map((photo, index) => (
+            {sortedPhotos.map((photo, index) => (
               <PhotoCard
                 key={photo.id}
                 photo={photo}
@@ -275,7 +322,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
       
       {lightboxIndex !== null && (
         <Lightbox 
-          photos={photos} 
+          photos={sortedPhotos} 
           currentIndex={lightboxIndex} 
           onClose={closeLightbox}
           onNext={nextPhoto}
