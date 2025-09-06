@@ -32,9 +32,8 @@ export const googleProvider = new firebase.auth.GoogleAuthProvider();
 NOTAS SOBRE LAS REGLAS DE SEGURIDAD DE FIREBASE
 ================================================================================
 
-Estas reglas son cruciales para la seguridad y el funcionamiento de la aplicación,
-especialmente para la función de eliminar álbumes. Deben ser copiadas y pegadas
-en la sección "Rules" correspondiente en la consola de Firebase.
+Estas reglas son cruciales para la seguridad y el funcionamiento de la aplicación.
+Deben ser copiadas y pegadas en la sección "Rules" correspondiente en la consola de Firebase.
 
 --- 1. REGLAS DE FIRESTORE DATABASE ---
 (Ir a Build -> Firestore Database -> Rules)
@@ -73,15 +72,24 @@ service cloud.firestore {
 
 --- 2. REGLAS DE CLOUD STORAGE ---
 (Ir a Build -> Storage -> Rules)
-(La regla 'write' incluye crear, actualizar y borrar)
 
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Los usuarios solo pueden leer, subir y borrar sus propias fotos.
-    // La ruta del archivo debe contener el ID del usuario.
+
+    // REGLA 1: PERMITIR LECTURA PÚBLICA
+    // Esto es crucial para que las miniaturas y los álbumes compartidos funcionen.
+    // Cualquiera con el enlace puede ver una imagen, pero no puede listar archivos.
+    // La privacidad de los álbumes se gestiona con las reglas de Firestore.
+    match /{allPaths=**} {
+      allow read;
+    }
+
+    // REGLA 2: PROTEGER LA ESCRITURA (SUBIR, BORRAR)
+    // Solo un usuario autenticado puede subir, actualizar o borrar archivos,
+    // y únicamente dentro de su propia carpeta de usuario.
     match /users/{userId}/photos/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
