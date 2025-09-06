@@ -36,16 +36,6 @@ const AlbumCard: React.FC<AlbumCardProps> = ({ album, onClick, onDelete, onShare
       {isAdmin && (
          <div className="absolute top-2 right-2 z-10 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button 
-            onClick={handleEdit}
-            className="p-1.5 text-white transition-all bg-sky-600 rounded-full hover:bg-sky-500"
-            aria-label="Editar álbum"
-            title="Editar álbum"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" />
-            </svg>
-          </button>
-          <button 
             onClick={handleShare}
             className="p-1.5 text-white transition-all bg-violet-600 rounded-full hover:bg-violet-500"
             aria-label="Compartir álbum"
@@ -53,6 +43,16 @@ const AlbumCard: React.FC<AlbumCardProps> = ({ album, onClick, onDelete, onShare
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+            </svg>
+          </button>
+           <button 
+            onClick={handleEdit}
+            className="p-1.5 text-white transition-all bg-blue-600 rounded-full hover:bg-blue-500"
+            aria-label="Editar álbum"
+            title="Editar álbum"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" />
             </svg>
           </button>
           <button 
