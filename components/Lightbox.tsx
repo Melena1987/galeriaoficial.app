@@ -1,6 +1,7 @@
 import React, { useEffect, FC, useState } from 'react';
 import { Photo } from '../types';
 import Spinner from './Spinner';
+import { getThumbnailUrl } from '../utils/image';
 
 interface LightboxProps {
   photos: Photo[];
@@ -12,9 +13,25 @@ interface LightboxProps {
 }
 
 const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, onPrev, albumName }) => {
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isFullResLoading, setIsFullResLoading] = useState(true);
+  const [isSharing, setIsSharing] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchDeltaX, setTouchDeltaX] = useState(0);
+
+  const currentPhoto = photos[currentIndex];
+
+  useEffect(() => {
+    if (!currentPhoto?.url) return;
+
+    setIsFullResLoading(true);
+    const img = new Image();
+    img.src = currentPhoto.url;
+    img.onload = () => setIsFullResLoading(false);
+    img.onerror = () => {
+      console.error(`Failed to load full-res image: ${currentPhoto.url}`);
+      setIsFullResLoading(false);
+    };
+  }, [currentPhoto]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -29,10 +46,8 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
     };
   }, [onClose, onNext, onPrev]);
 
-  if (currentIndex === null || !photos[currentIndex]) return null;
+  if (!currentPhoto) return null;
 
-  const currentPhoto = photos[currentIndex];
-  
   const triggerDownload = (blob: Blob, fileName: string) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -46,21 +61,18 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
   };
   
   const handleShare = async () => {
-    if (isProcessing) return;
-    setIsProcessing(true);
+    if (isSharing) return;
+    setIsSharing(true);
     
     const fileName = currentPhoto.fileName || `photo-${currentPhoto.id}.jpg`;
     
     try {
-      // IDEAL PATH: Fetch the image data to allow true file sharing or a named download.
-      // This will only work if CORS is correctly configured on the storage bucket.
       const response = await fetch(currentPhoto.url);
       if (!response.ok) throw new Error('Network response was not ok, likely a CORS issue.');
       const blob = await response.blob();
       
       const file = new File([blob], fileName, { type: blob.type });
 
-      // Mobile / Modern browsers with Web Share API for files
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
@@ -68,37 +80,30 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
           text: albumName ? `Foto del álbum ${albumName}` : `Foto compartida desde la galería.`,
         });
       } else {
-        // Desktop / Fallback for browsers without file sharing
         triggerDownload(blob, fileName);
       }
 
     } catch (error) {
       console.warn('Ideal share/download path failed, falling back to simpler methods.', error);
 
-      // FALLBACK PATH: If fetch fails (e.g., CORS error), use URL-based methods.
       try {
-        // Mobile fallback: Share the direct URL to the image.
         if (navigator.share) {
           await navigator.share({
             title: albumName ? `Foto de ${albumName}` : 'Mira esta foto',
             text: albumName ? `Te comparto esta foto del álbum "${albumName}"` : 'Te comparto esta foto:',
-            url: currentPhoto.url, // Corrected: Share the photo URL, not the page URL.
+            url: currentPhoto.url,
           });
         } else {
-          // Desktop fallback: Open the image in a new tab. The user can save it from there.
-          // Direct download with a custom name is not possible cross-origin without CORS.
           window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
         }
       } catch (fallbackError: any) {
-        // Do not show an error if the user simply closes the share dialog.
         if (fallbackError.name !== 'AbortError') {
           console.error('Fallback share/open failed:', fallbackError);
-          // Only show alert if the very last resort fails.
           alert('No se pudo compartir o descargar la imagen.');
         }
       }
     } finally {
-      setIsProcessing(false);
+      setIsSharing(false);
     }
   };
 
@@ -123,7 +128,6 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       }
     }
     
-    // Reset for the next interaction
     setTouchStartX(null);
     setTouchDeltaX(0);
   };
@@ -137,11 +141,11 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       <div className="absolute z-10 flex items-center gap-4 p-2 text-white transition-opacity bg-black rounded-full top-4 right-4 bg-opacity-40">
         <button
           onClick={(e) => { e.stopPropagation(); handleShare(); }}
-          disabled={isProcessing}
+          disabled={isSharing}
           className="transition-transform hover:scale-110 disabled:cursor-not-allowed"
           aria-label="Compartir o descargar imagen"
         >
-          {isProcessing ? <Spinner className="w-6 h-6 border-2" /> : (
+          {isSharing ? <Spinner className="w-6 h-6 border-2" /> : (
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8m-4-6l-4-4m0 0L8 6m4-4v12" />
             </svg>
@@ -161,17 +165,37 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        style={{
+          transform: `translateX(${touchDeltaX}px)`,
+          transition: touchStartX === null ? 'transform 0.2s ease-out' : 'none',
+        }}
+        draggable="false"
       >
+        {/* Thumbnail - acts as a blurry placeholder */}
+        <img
+          src={getThumbnailUrl(currentPhoto.url)}
+          alt="" // Decorative, alt text is on the main image
+          className="absolute object-contain w-full h-full max-w-full max-h-full transition-opacity duration-300 filter blur-md"
+          style={{ opacity: isFullResLoading ? 1 : 0 }}
+          draggable="false"
+        />
+
+        {/* Full Resolution Image - fades in when loaded */}
         <img
           src={currentPhoto.url}
           alt={currentPhoto.fileName}
-          className="object-contain max-w-full max-h-full"
-          style={{
-            transform: `translateX(${touchDeltaX}px)`,
-            transition: touchStartX === null ? 'transform 0.2s ease-out' : 'none',
-          }}
+          className="relative object-contain max-w-full max-h-full transition-opacity duration-500"
+          style={{ opacity: isFullResLoading ? 0 : 1 }}
           draggable="false"
         />
+
+        {/* Loading Spinner */}
+        {isFullResLoading && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Spinner />
+          </div>
+        )}
+
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black bg-opacity-50 text-white text-sm rounded-md">
            {currentIndex + 1} / {photos.length}
         </div>
