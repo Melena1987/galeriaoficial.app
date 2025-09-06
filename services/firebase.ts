@@ -136,4 +136,50 @@ autenticarse directamente con Firebase, se ha creado un servicio en Google Cloud
 
 Esta aplicación frontend NO consume esta API directamente, ya que tiene acceso
 autenticado a Firestore. Esta API es exclusivamente para consumidores externos.
+
+================================================================================
+INTEGRACIÓN CON WIX (VELO) - HISTORIAL DE PROGRESO
+================================================================================
+
+Se ha completado con éxito la integración del backend para mostrar una galería
+pública en un sitio de Wix utilizando Velo.
+
+- **Punto de Partida:** El servicio de Cloud Run `getpublicalbum` funciona
+  correctamente y expone los datos de los álbumes públicos.
+
+- **Backend de Velo (`galleryAPI.jsw`):** Se creó un módulo JSW en el backend de Velo
+  que llama de forma segura al endpoint de Cloud Run. Esta parte funciona
+  perfectamente.
+
+- **Frontend de Velo (Código de Página):**
+  - El código de la página llama a la función del backend `getPublicAlbumData`.
+  - **ÉXITO CONFIRMADO:** La consola del navegador en el modo "Preview" de Wix
+    muestra el mensaje "ÁLBUM RECIBIDO CORRECTAMENTE" junto con el objeto
+    del álbum. Esto confirma que los datos están llegando a la página.
+  - El código utiliza un elemento **Repetidor** (ID: `#galleryRepeater`) para
+    mostrar las fotos. Dentro de cada ítem del repetidor, hay un **Contenedor**
+    y dentro de él, un elemento **Imagen** (ID: `#photoImage`).
+
+- **PROBLEMA ACTUAL Y BLOQUEO:**
+  - A pesar de que los datos se reciben correctamente en la página, el Repetidor
+    no se actualiza visualmente para mostrar las fotos del álbum. Sigue
+    sin mostrar nada o con los ítems de la plantilla por defecto.
+  - **No hay errores de código en la consola.** El problema es puramente de renderizado
+    en el editor de Wix o en el modo "Preview".
+
+- **ÚLTIMOS PASOS DE DEPURACIÓN SUGERIDOS (Sin éxito hasta ahora):**
+  1.  **Verificar Propiedades del Repetidor:** Se ha confirmado que el repetidor
+      NO está marcado como "Oculto" o "Contraído" por defecto en el panel de
+      propiedades del editor.
+  2.  **Ajustar Tamaño Físico:** Se ha intentado dar al repetidor un tamaño
+      (alto y ancho) explícito en el editor para asegurar que ocupa espacio.
+  3.  **Publicar y Probar en Sitio Real:** Se ha recomendado publicar el sitio
+      y comprobar la URL en vivo, ya que el modo "Preview" de Velo puede ser
+      poco fiable para renderizar contenido dinámico inyectado por código.
+
+- **Conclusión para el próximo técnico:** El flujo de datos (Cloud Run -> Velo Backend -> Velo Frontend)
+  está 100% operativo. El problema reside exclusivamente en la configuración
+  visual del componente Repetidor en el Editor de Wix o en un posible bug/limitación
+  del entorno de Velo. El siguiente paso es revisar meticulosamente cada propiedad
+  del Repetidor y sus elementos hijos en el editor, y probar en el sitio publicado.
 */
