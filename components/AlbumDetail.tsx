@@ -5,6 +5,8 @@ import UploadForm from './UploadForm';
 import PhotoCard from './PhotoCard';
 import Lightbox from './Lightbox';
 import Spinner from './Spinner';
+import JSZip from 'jszip';
+import saveAs from 'file-saver';
 
 interface AlbumDetailProps {
   album: Album;
@@ -16,6 +18,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const user = auth.currentUser;
   const isAdmin = user?.email === 'manudesignsforyou@gmail.com';
@@ -125,6 +128,60 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
     }
   };
 
+  const handleDownloadAlbum = async () => {
+    if (photos.length === 0) {
+      alert("Este álbum está vacío, no hay nada que descargar.");
+      return;
+    }
+    
+    setIsDownloading(true);
+    alert('Preparando la descarga. Esto puede tardar unos minutos para álbumes grandes. La descarga comenzará automáticamente.');
+
+    try {
+      const zip = new JSZip();
+
+      const photoPromises = photos.map(async (photo) => {
+        try {
+          const response = await fetch(photo.url);
+          if (!response.ok) {
+              console.error(`Failed to fetch ${photo.url}: ${response.statusText}`);
+              return null;
+          }
+          const blob = await response.blob();
+          return { name: photo.fileName, blob };
+        } catch(e) {
+          console.error(`Error fetching image blob for ${photo.fileName}`, e);
+          return null;
+        }
+      });
+
+      const results = await Promise.all(photoPromises);
+
+      let fileCount = 0;
+      results.forEach(result => {
+        if (result) {
+          zip.file(result.name, result.blob);
+          fileCount++;
+        }
+      });
+      
+      if (fileCount === 0) {
+          alert('No se pudieron descargar las fotos. Revisa la consola para más detalles.');
+          return;
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const safeAlbumName = album.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      saveAs(content, `${safeAlbumName || 'album'}.zip`);
+
+    } catch (error) {
+      console.error("Error creating zip file:", error);
+      alert("Ocurrió un error al crear el archivo ZIP. Por favor, inténtalo de nuevo.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const openLightbox = (index: number) => setLightboxIndex(index);
   const closeLightbox = () => setLightboxIndex(null);
   const nextPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev + 1) % photos.length));
@@ -135,16 +192,37 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album, onBack }) => {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <header className="sticky top-0 z-20 h-16 bg-slate-900/75 backdrop-blur-lg">
-        <div className="container flex items-center h-full mx-auto px-4 md:px-6">
-          <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-slate-800">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div className="ml-4">
-            <h1 className="text-xl font-bold truncate">{album.name}</h1>
-            <p className="text-sm text-slate-400 truncate">{album.description}</p>
+        <div className="container flex items-center justify-between h-full gap-4 mx-auto px-4 md:px-6">
+          <div className="flex items-center min-w-0">
+            <button onClick={onBack} className="flex-shrink-0 p-2 -ml-2 rounded-full hover:bg-slate-800">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="ml-4 min-w-0">
+              <h1 className="text-xl font-bold truncate">{album.name}</h1>
+              <p className="text-sm text-slate-400 truncate">{album.description}</p>
+            </div>
           </div>
+          
+          {isAdmin && photos.length > 0 && (
+            <div className="flex-shrink-0">
+              <button
+                onClick={handleDownloadAlbum}
+                disabled={isDownloading}
+                className="flex items-center justify-center p-2 text-slate-400 transition-colors rounded-full hover:bg-slate-800 hover:text-white disabled:opacity-50 disabled:cursor-wait"
+                title="Descargar álbum completo (.zip)"
+              >
+                {isDownloading ? (
+                  <Spinner className="w-6 h-6 border-2" />
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
