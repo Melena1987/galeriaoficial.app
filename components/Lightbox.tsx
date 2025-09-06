@@ -1,7 +1,6 @@
-import React, { useEffect, FC, useState } from 'react';
+import React, { useEffect, FC, useState, useRef } from 'react';
 import { Photo } from '../types';
 import Spinner from './Spinner';
-import { getThumbnailUrl } from '../utils/image';
 
 interface LightboxProps {
   photos: Photo[];
@@ -12,42 +11,45 @@ interface LightboxProps {
   albumName?: string;
 }
 
-const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, onPrev, albumName }) => {
-  const [isFullResLoading, setIsFullResLoading] = useState(true);
+const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, onPrev }) => {
   const [isSharing, setIsSharing] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchDeltaX, setTouchDeltaX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
-  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+  const [imageQualities, setImageQualities] = useState<Record<string, 'high' | 'low'>>({});
+
+  const prevIndex = (currentIndex - 1 + photos.length) % photos.length;
+  const nextIndex = (currentIndex + 1) % photos.length;
 
   const currentPhoto = photos[currentIndex];
+  const prevPhoto = photos[prevIndex];
+  const nextPhoto = photos[nextIndex];
 
-  useEffect(() => {
-    if (!currentPhoto?.url) return;
+  const hasHighQuality = (photo?: Photo) => photo && imageQualities[photo.id] === 'high';
 
-    setIsFullResLoading(true);
+  const preloadImage = (photo: Photo) => {
+    if (!photo || imageQualities[photo.id]) return;
     const img = new Image();
-    img.src = currentPhoto.url;
-    img.onload = () => setIsFullResLoading(false);
-    img.onerror = () => {
-      console.error(`Failed to load full-res image: ${currentPhoto.url}`);
-      setIsFullResLoading(false);
+    img.src = photo.url;
+    img.onload = () => {
+      setImageQualities(prev => ({ ...prev, [photo.id]: 'high' }));
     };
-  }, [currentPhoto]);
+  };
 
   useEffect(() => {
-    // Bloquear el scroll del body cuando el Lightbox está abierto
+    preloadImage(currentPhoto);
+    preloadImage(nextPhoto);
+    preloadImage(prevPhoto);
+  }, [currentIndex, photos]);
+  
+  useEffect(() => {
     document.body.style.overflow = 'hidden';
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowRight') onNext();
       if (e.key === 'ArrowLeft') onPrev();
     };
-
     window.addEventListener('keydown', handleKeyDown);
-    
-    // Restaurar el scroll cuando el Lightbox se cierra
     return () => {
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
@@ -57,22 +59,20 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
   if (!currentPhoto) return null;
 
   const handleShare = async () => {
-    if (isSharing || !currentPhoto) return;
+    if (isSharing) return;
     setIsSharing(true);
     const { url, fileName } = currentPhoto;
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
       const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.style.display = 'none';
-      link.href = blobUrl;
+      link.href = URL.createObjectURL(blob);
       link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+      URL.revokeObjectURL(link.href);
     } catch (error) {
       console.error('Download failed:', error);
       alert('No se pudo iniciar la descarga directa. Se abrirá la imagen en una nueva pestaña para que puedas guardarla manualmente.');
@@ -83,54 +83,64 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (isAnimatingOut) return;
     setTouchStartX(e.touches[0].clientX);
     setIsSwiping(true);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartX === null || !isSwiping) return;
+    if (touchStartX === null) return;
     setTouchDeltaX(e.touches[0].clientX - touchStartX);
   };
 
   const handleTouchEnd = () => {
     if (touchStartX === null) return;
-    setIsSwiping(false); // Enable CSS transitions
-    const swipeThreshold = 50;
+    setIsSwiping(false);
+    const swipeThreshold = window.innerWidth / 4;
 
-    if (Math.abs(touchDeltaX) > swipeThreshold) {
-      // Successful swipe, trigger animation
-      setIsAnimatingOut(true);
+    if (touchDeltaX < -swipeThreshold) {
+      onNext();
+    } else if (touchDeltaX > swipeThreshold) {
+      onPrev();
     } else {
-      // Not a big enough swipe, animate back to center
       setTouchDeltaX(0);
     }
     setTouchStartX(null);
   };
-  
-  const handleTransitionEnd = (e: React.TransitionEvent) => {
-    // Fires after the "swipe out" animation is complete
-    if (e.propertyName !== 'transform' || !isAnimatingOut) return;
 
-    if (touchDeltaX < 0) {
-      onNext();
-    } else {
-      onPrev();
-    }
-    
-    // Reset state for the new image to appear correctly
-    setIsAnimatingOut(false);
-    setTouchDeltaX(0);
+  const handleTransitionEnd = () => {
+      // After a transition to a new image, reset the delta.
+      if (touchDeltaX !== 0) {
+          setTouchDeltaX(0);
+      }
   };
 
-  // Correctly calculates the transform value and its unit (px or vw)
-  const transformValue = isAnimatingOut
-    ? (touchDeltaX < 0 ? '-100vw' : '100vw')
-    : `${touchDeltaX}px`;
+  const filmstripStyle: React.CSSProperties = {
+    display: 'flex',
+    transform: `translateX(calc(-100% + ${touchDeltaX}px))`,
+    transition: isSwiping ? 'none' : 'transform 0.35s cubic-bezier(0.25, 0.1, 0.25, 1)',
+  };
 
-  const imageContainerStyle: React.CSSProperties = {
-    transform: `translateX(${transformValue})`,
-    transition: isSwiping ? 'none' : 'transform 0.3s ease-out',
+  const ImageComponent = ({ photo }: { photo?: Photo }) => {
+    if (!photo) return <div className="relative flex-shrink-0 w-full h-full" />;
+    return (
+      <div className="relative flex-shrink-0 w-full h-full" draggable="false">
+        <img
+          src={photo.url}
+          alt={photo.fileName}
+          className="object-contain w-full h-full max-w-full max-h-full"
+          style={{
+            opacity: hasHighQuality(photo) ? 1 : 0,
+            transition: 'opacity 0.5s',
+          }}
+          draggable="false"
+        />
+        {!hasHighQuality(photo) && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Spinner />
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -138,7 +148,6 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-90"
       onClick={onClose}
     >
-      {/* Top Controls */}
       <div className="absolute z-10 flex items-center gap-4 p-2 text-white transition-opacity bg-black rounded-full top-4 right-4 bg-opacity-40">
         <button
           onClick={(e) => { e.stopPropagation(); handleShare(); }}
@@ -160,48 +169,24 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
         </button>
       </div>
 
-      {/* Main Image */}
-      <div 
-        className="relative flex items-center justify-center w-full h-full" 
+      <div
+        className="relative w-full h-full overflow-hidden"
         onClick={e => e.stopPropagation()}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onTransitionEnd={handleTransitionEnd}
-        style={imageContainerStyle}
-        draggable="false"
       >
-        {/* Thumbnail - acts as a blurry placeholder */}
-        <img
-          src={getThumbnailUrl(currentPhoto.url)}
-          alt="" // Decorative, alt text is on the main image
-          className="absolute object-contain w-full h-full max-w-full max-h-full transition-opacity duration-300 filter blur-md"
-          style={{ opacity: isFullResLoading ? 1 : 0 }}
-          draggable="false"
-        />
-
-        {/* Full Resolution Image - fades in when loaded */}
-        <img
-          src={currentPhoto.url}
-          alt={currentPhoto.fileName}
-          className="relative object-contain max-w-full max-h-full transition-opacity duration-500"
-          style={{ opacity: isFullResLoading ? 0 : 1 }}
-          draggable="false"
-        />
-
-        {/* Loading Spinner */}
-        {isFullResLoading && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Spinner />
-          </div>
-        )}
-
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black bg-opacity-50 text-white text-sm rounded-md">
-           {currentIndex + 1} / {photos.length}
+        <div style={filmstripStyle} onTransitionEnd={handleTransitionEnd}>
+          <ImageComponent photo={prevPhoto} />
+          <ImageComponent photo={currentPhoto} />
+          <ImageComponent photo={nextPhoto} />
         </div>
       </div>
+      
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black bg-opacity-50 text-white text-sm rounded-md">
+           {currentIndex + 1} / {photos.length}
+      </div>
 
-      {/* Prev button */}
       <button
         onClick={(e) => { e.stopPropagation(); onPrev(); }}
         className="absolute left-4 top-1/2 -translate-y-1/2 p-2 text-white transition-opacity bg-black rounded-full bg-opacity-40 hover:bg-opacity-60 hidden md:block"
@@ -212,7 +197,6 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
         </svg>
       </button>
 
-      {/* Next button */}
       <button
         onClick={(e) => { e.stopPropagation(); onNext(); }}
         className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-white transition-opacity bg-black rounded-full bg-opacity-40 hover:bg-opacity-60 hidden md:block"
