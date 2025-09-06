@@ -90,7 +90,7 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
 
         const photosSnapshot = await db.collection('photos')
           .where('albumId', '==', albumId)
-          .orderBy('createdAt', 'desc')
+          .orderBy('createdAt', 'asc')
           .get();
 
         const albumPhotos: Photo[] = photosSnapshot.docs.map(doc => ({

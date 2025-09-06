@@ -23,14 +23,14 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album: initialAlbum, onBack }
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
   
-  // Initialize sortOrder from localStorage, defaulting to 'newest'.
+  // Initialize sortOrder from localStorage, defaulting to 'oldest'.
   const [sortOrder, setSortOrder] = useState<SortOrder>(() => {
     const savedOrder = localStorage.getItem(`albumSortOrder_${initialAlbum.id}`);
     // Type guard to ensure the saved value is valid.
     if (savedOrder === 'newest' || savedOrder === 'oldest' || savedOrder === 'name_asc' || savedOrder === 'name_desc') {
       return savedOrder;
     }
-    return 'newest';
+    return 'oldest';
   });
 
   const user = auth.currentUser;
@@ -56,7 +56,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album: initialAlbum, onBack }
     const unsubscribe = db.collection('photos')
       .where('albumId', '==', album.id)
       .where('userId', '==', user.uid)
-      .orderBy('createdAt', 'desc') // Always fetch newest first
+      .orderBy('createdAt', 'asc') // Fetch oldest first by default
       .onSnapshot(snapshot => {
         const albumPhotos: Photo[] = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -81,6 +81,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album: initialAlbum, onBack }
     const sortablePhotos = [...photos];
     switch (sortOrder) {
       case 'oldest':
+        // Firestore already provides this order, but sorting ensures consistency if source changes.
         return sortablePhotos.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
       case 'name_asc':
         return sortablePhotos.sort((a, b) => a.fileName.localeCompare(b.fileName));
@@ -88,7 +89,6 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album: initialAlbum, onBack }
         return sortablePhotos.sort((a, b) => b.fileName.localeCompare(a.fileName));
       case 'newest':
       default:
-        // Firestore already provides this order, but sorting ensures consistency if source changes.
         return sortablePhotos.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
     }
   }, [photos, sortOrder]);
