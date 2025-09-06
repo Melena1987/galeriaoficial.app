@@ -63,47 +63,49 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
   const handleShare = async () => {
     if (isSharing) return;
     setIsSharing(true);
-    
+
     const fileName = currentPhoto.fileName || `photo-${currentPhoto.id}.jpg`;
-    
+    const shareData = {
+        title: fileName,
+        text: albumName ? `Foto del álbum ${albumName}` : `Foto compartida desde la galería.`,
+    };
+
+    // Attempt to fetch blob to share as a file (best experience)
     try {
-      const response = await fetch(currentPhoto.url);
-      if (!response.ok) throw new Error('Network response was not ok, likely a CORS issue.');
-      const blob = await response.blob();
-      
-      const file = new File([blob], fileName, { type: blob.type });
+        const response = await fetch(currentPhoto.url);
+        if (!response.ok) throw new Error('Network response was not ok, likely CORS issue.');
+        
+        const blob = await response.blob();
+        const file = new File([blob], fileName, { type: blob.type });
 
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: fileName,
-          text: albumName ? `Foto del álbum ${albumName}` : `Foto compartida desde la galería.`,
-        });
-      } else {
-        triggerDownload(blob, fileName);
-      }
-
-    } catch (error) {
-      console.warn('Ideal share/download path failed, falling back to simpler methods.', error);
-
-      try {
-        if (navigator.share) {
-          await navigator.share({
-            title: albumName ? `Foto de ${albumName}` : 'Mira esta foto',
-            text: albumName ? `Te comparto esta foto del álbum "${albumName}"` : 'Te comparto esta foto:',
-            url: currentPhoto.url,
-          });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ ...shareData, files: [file] });
         } else {
-          window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
+            // If sharing files is not supported, fallback to download
+            triggerDownload(blob, fileName);
         }
-      } catch (fallbackError: any) {
-        if (fallbackError.name !== 'AbortError') {
-          console.error('Fallback share/open failed:', fallbackError);
-          alert('No se pudo compartir o descargar la imagen.');
+    } catch (error) {
+        console.warn('Could not fetch image blob, falling back to URL sharing. Error:', error);
+
+        // Fallback 1: Share URL if blob fetch failed
+        try {
+            if (navigator.share) {
+                await navigator.share({ ...shareData, url: currentPhoto.url });
+                return; // Success, so exit
+            }
+        } catch (shareError) {
+             // If sharing URL fails (e.g., user cancels), we don't want to open a new tab.
+             // Only proceed to final fallback if it's not an AbortError.
+            if ((shareError as DOMException)?.name === 'AbortError') {
+                 return;
+            }
+            console.warn('URL sharing failed, proceeding to final fallback. Error:', shareError);
         }
-      }
+
+        // Fallback 2: Open image in a new tab (most reliable)
+        window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
     } finally {
-      setIsSharing(false);
+        setIsSharing(false);
     }
   };
 
