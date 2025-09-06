@@ -14,35 +14,32 @@ export const getThumbnailUrl = (originalUrl?: string, size: string = '400x400'):
   }
 
   try {
-    // Las URLs de Firebase Storage se ven así:
-    // https://firebasestorage.googleapis.com/v0/b/project-id.appspot.com/o/path%2Fto%2Fimage.jpg?alt=media&token=...
-    // Necesitamos insertar el sufijo antes de la extensión del archivo en la parte de la ruta.
-    
-    const url = new URL(originalUrl);
-    const pathName = decodeURIComponent(url.pathname);
-    
-    const extensionIndex = pathName.lastIndexOf('.');
-    if (extensionIndex === -1) {
-      // No se encontró extensión, devolver la original.
-      return originalUrl;
-    }
-    
-    const basePath = pathName.substring(0, extensionIndex);
-    const extension = pathName.substring(extensionIndex);
-    
-    const newPathName = `${basePath}_${size}${extension}`;
-    
-    // La ruta en la URL real está codificada, pero las barras ('/') no.
-    // Necesitamos reconstruir la URL con la nueva ruta codificada correctamente.
-    // Dividimos la ruta original por '/' para codificar cada segmento por separado.
-    const pathSegments = newPathName.split('/');
-    const encodedPathSegments = pathSegments.map(segment => encodeURIComponent(segment));
-    url.pathname = encodedPathSegments.join('/');
+    // Dividimos la URL para separar la ruta base de los parámetros de consulta (token, etc.)
+    const urlParts = originalUrl.split('?');
+    const baseUrl = urlParts[0];
+    const queryParams = urlParts.length > 1 ? `?${urlParts[1]}` : '';
 
-    return url.toString();
+    // Buscamos la posición del último punto (extensión) y la última barra en la ruta base.
+    const lastDotIndex = baseUrl.lastIndexOf('.');
+    const lastSlashIndex = baseUrl.lastIndexOf('/');
+
+    // Nos aseguramos de que el punto que encontramos es parte de una extensión de archivo
+    // en el último segmento de la ruta (después de la última barra).
+    if (lastDotIndex > lastSlashIndex) {
+      const pathWithoutExtension = baseUrl.substring(0, lastDotIndex);
+      const extension = baseUrl.substring(lastDotIndex);
+      
+      // Reconstruimos la URL insertando el sufijo de tamaño antes de la extensión.
+      const thumbnailUrl = `${pathWithoutExtension}_${size}${extension}${queryParams}`;
+      return thumbnailUrl;
+    }
+
+    // Si no se encuentra una extensión de archivo válida, devolvemos la URL original.
+    return originalUrl;
+
   } catch (error) {
     console.error('Error al generar la URL de la miniatura:', error);
-    // Si algo falla, es más seguro devolver la URL original.
+    // En caso de cualquier error, es más seguro devolver la URL original.
     return originalUrl;
   }
 };
