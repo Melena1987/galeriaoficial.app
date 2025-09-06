@@ -56,7 +56,6 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album: initialAlbum, onBack }
     const unsubscribe = db.collection('photos')
       .where('albumId', '==', album.id)
       .where('userId', '==', user.uid)
-      .orderBy('createdAt', 'asc') // Fetch oldest first by default
       .onSnapshot(snapshot => {
         const albumPhotos: Photo[] = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -81,7 +80,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album: initialAlbum, onBack }
     const sortablePhotos = [...photos];
     switch (sortOrder) {
       case 'oldest':
-        // Firestore already provides this order, but sorting ensures consistency if source changes.
+        // Sorts the photos by creation date (oldest first).
         return sortablePhotos.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
       case 'name_asc':
         return sortablePhotos.sort((a, b) => a.fileName.localeCompare(b.fileName));
