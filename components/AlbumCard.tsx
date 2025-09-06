@@ -1,5 +1,6 @@
 import React from 'react';
 import { Album } from '../types';
+import LazyImage from './LazyImage';
 
 interface AlbumCardProps {
   album: Album;
@@ -49,12 +50,11 @@ const AlbumCard: React.FC<AlbumCardProps> = ({ album, onClick, onDelete, onShare
       )}
       <div className="relative w-full h-48 bg-slate-700">
         {album.coverPhotoUrl ? (
-          <img 
+          <LazyImage 
             src={album.coverPhotoUrl} 
             alt={album.name} 
             className="object-cover w-full h-full"
-            loading="lazy"
-            decoding="async"
+            placeholderClassName="bg-slate-700"
           />
         ) : (
           <div className="flex items-center justify-center w-full h-full">

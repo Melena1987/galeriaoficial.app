@@ -1,5 +1,6 @@
 import React from 'react';
 import { Photo } from '../types';
+import LazyImage from './LazyImage';
 
 interface PhotoCardProps {
   photo: Photo;
@@ -42,12 +43,10 @@ const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin
         </button>
       )}
 
-      <img 
-        src={photo.url} 
-        alt={photo.fileName} 
+      <LazyImage
+        src={photo.url}
+        alt={photo.fileName}
         className={`object-cover w-full h-full transition-opacity ${isSelected ? 'opacity-60' : ''}`}
-        loading="lazy"
-        decoding="async"
       />
       
       {isAdmin && (

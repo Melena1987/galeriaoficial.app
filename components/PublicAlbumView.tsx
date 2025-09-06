@@ -3,6 +3,7 @@ import { db } from '../services/firebase';
 import { Album, Photo } from '../types';
 import Lightbox from './Lightbox';
 import Spinner from './Spinner';
+import LazyImage from './LazyImage';
 
 interface PublicAlbumViewProps {
   albumId: string;
@@ -151,12 +152,10 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
                 className="overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg cursor-pointer group aspect-square bg-slate-800 hover:scale-105"
                 onClick={() => openLightbox(index)}
               >
-                <img
+                <LazyImage
                   src={photo.url}
                   alt={photo.fileName}
                   className="object-cover w-full h-full"
-                  loading="lazy"
-                  decoding="async"
                 />
               </div>
             ))}
