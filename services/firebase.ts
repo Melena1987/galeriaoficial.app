@@ -138,48 +138,43 @@ Esta aplicación frontend NO consume esta API directamente, ya que tiene acceso
 autenticado a Firestore. Esta API es exclusivamente para consumidores externos.
 
 ================================================================================
-INTEGRACIÓN CON WIX (VELO) - HISTORIAL DE PROGRESO
+INTEGRACIÓN CON WIX (VELO) - HISTORIAL Y SOLUCIÓN FINAL
 ================================================================================
 
 Se ha completado con éxito la integración del backend para mostrar una galería
 pública en un sitio de Wix utilizando Velo.
 
-- **Punto de Partida:** El servicio de Cloud Run `getpublicalbum` funciona
-  correctamente y expone los datos de los álbumes públicos.
+- **Flujo de Datos:** Cloud Run (`getpublicalbum`) -> Backend de Velo (`galleryAPI.jsw`) -> Frontend de Velo (Página).
+  Este flujo de datos se confirmó como 100% operativo desde el inicio.
 
-- **Backend de Velo (`galleryAPI.jsw`):** Se creó un módulo JSW en el backend de Velo
-  que llama de forma segura al endpoint de Cloud Run. Esta parte funciona
-  perfectamente.
+- **PROBLEMA DETECTADO:** A pesar de que los datos del álbum (incluyendo el array de fotos)
+  llegaban correctamente al frontend de Velo, el componente Repetidor (`#galleryRepeater`)
+  no renderizaba las imágenes. La consola del navegador finalmente reveló el error clave:
+  "Wix code SDK error: Each item in the items array must have a member named `_id` which contains a unique value identifying the item."
 
-- **Frontend de Velo (Código de Página):**
-  - El código de la página llama a la función del backend `getPublicAlbumData`.
-  - **ÉXITO CONFIRMADO:** La consola del navegador en el modo "Preview" de Wix
-    muestra el mensaje "ÁLBUM RECIBIDO CORRECTAMENTE" junto con el objeto
-    del álbum. Esto confirma que los datos están llegando a la página.
-  - El código utiliza un elemento **Repetidor** (ID: `#galleryRepeater`) para
-    mostrar las fotos. Dentro de cada ítem del repetidor, hay un **Contenedor**
-    y dentro de él, un elemento **Imagen** (ID: `#photoImage`).
+- **CAUSA RAÍZ:** Los Repetidores de Velo requieren que cada objeto en el array de datos
+  que se les asigna tenga una propiedad **`_id`** (con guion bajo) que actúe como
+  identificador único. Nuestra API, siguiendo la convención de Firestore, devolvía
+  esta propiedad como `id` (sin guion bajo).
 
-- **PROBLEMA ACTUAL Y BLOQUEO:**
-  - A pesar de que los datos se reciben correctamente en la página, el Repetidor
-    no se actualiza visualmente para mostrar las fotos del álbum. Sigue
-    sin mostrar nada o con los ítems de la plantilla por defecto.
-  - **No hay errores de código en la consola.** El problema es puramente de renderizado
-    en el editor de Wix o en el modo "Preview".
+- **SOLUCIÓN FINAL (Implementada en el código de la página de Velo):**
+  La solución consiste en transformar el array de fotos recibido de la API antes
+  de asignarlo al repetidor. Se utiliza el método `.map()` de Javascript para crear
+  un nuevo array donde cada objeto de foto incluye la propiedad `_id` requerida.
 
-- **ÚLTIMOS PASOS DE DEPURACIÓN SUGERIDOS (Sin éxito hasta ahora):**
-  1.  **Verificar Propiedades del Repetidor:** Se ha confirmado que el repetidor
-      NO está marcado como "Oculto" o "Contraído" por defecto en el panel de
-      propiedades del editor.
-  2.  **Ajustar Tamaño Físico:** Se ha intentado dar al repetidor un tamaño
-      (alto y ancho) explícito en el editor para asegurar que ocupa espacio.
-  3.  **Publicar y Probar en Sitio Real:** Se ha recomendado publicar el sitio
-      y comprobar la URL en vivo, ya que el modo "Preview" de Velo puede ser
-      poco fiable para renderizar contenido dinámico inyectado por código.
+  Ejemplo del código de transformación en el frontend de Velo:
+  ```javascript
+  const photosForRepeater = albumData.photos.map(photo => {
+    return {
+      ...photo,       // Copia todas las propiedades originales (url, fileName, etc.)
+      _id: photo.id  // Añade la propiedad "_id" usando el valor de "id".
+    };
+  });
 
-- **Conclusión para el próximo técnico:** El flujo de datos (Cloud Run -> Velo Backend -> Velo Frontend)
-  está 100% operativo. El problema reside exclusivamente en la configuración
-  visual del componente Repetidor en el Editor de Wix o en un posible bug/limitación
-  del entorno de Velo. El siguiente paso es revisar meticulosamente cada propiedad
-  del Repetidor y sus elementos hijos en el editor, y probar en el sitio publicado.
+  // Finalmente, se asigna el array ya transformado al repetidor:
+  $w('#galleryRepeater').data = photosForRepeater;
+  ```
+
+- **ESTADO:** Con esta modificación, la integración está completa y la galería
+  se muestra correctamente en el sitio de Wix. El problema ha sido resuelto.
 */
