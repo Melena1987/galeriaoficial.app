@@ -107,13 +107,32 @@ autenticarse directamente con Firebase, se ha creado un servicio en Google Cloud
 - Autenticación: El servicio está configurado para "Permitir invocaciones no autenticadas",
   lo que significa que cualquiera con la URL puede acceder a él. La lógica interna
   del código (index.js) se encarga de verificar si el álbum solicitado es público.
-- Despliegue: Se ha desplegado utilizando la terminal de Cloud Shell con el siguiente
-  comando (o similar), después de crear los archivos index.js y package.json:
-  
-  gcloud run deploy getpublicalbum --source . --region=europe-west2 --allow-unauthenticated --set-env-vars=GOOGLE_FUNCTION_TARGET=getPublicAlbum
-  
-- URL del Endpoint: La URL final es generada por Cloud Run al finalizar el despliegue.
-  Esa es la URL que debe ser utilizada por el servicio externo (ej: Velo).
+
+- Despliegue y Configuración Clave:
+  El servicio fue desplegado desde la terminal de Cloud Shell, ya que la interfaz
+  gráfica de Google Cloud presentaba problemas para mostrar el editor de código.
+
+  1.  Se crearon dos archivos en una carpeta (`index.js` y `package.json`).
+  2.  **IMPORTANTE**: Para que el contenedor de Cloud Run pueda iniciarse correctamente,
+      el archivo `package.json` debe incluir un script "start" que ejecute el
+      functions-framework. Sin esto, el despliegue falla con un error de "container failed to start".
+      
+      Ejemplo de `package.json` funcional:
+      {
+        "name": "getpublicalbum-service",
+        "main": "index.js",
+        "scripts": {
+          "start": "functions-framework --target=getPublicAlbum"
+        },
+        "dependencies": { ... }
+      }
+
+  3.  El comando final y exitoso para el despliegue fue:
+      gcloud run deploy getpublicalbum --source . --region=europe-west2 --allow-unauthenticated --set-env-vars=GOOGLE_FUNCTION_TARGET=getPublicAlbum
+
+- URL del Endpoint: La URL final es generada por Cloud Run al finalizar el despliegue
+  (ej: https://getpublicalbum-149378720195.europe-west2.run.app). Esa es la URL
+  que debe ser utilizada por el servicio externo (ej: Velo).
 
 Esta aplicación frontend NO consume esta API directamente, ya que tiene acceso
 autenticado a Firestore. Esta API es exclusivamente para consumidores externos.
