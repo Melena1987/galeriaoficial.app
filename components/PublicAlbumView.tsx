@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../services/firebase';
 import { Album, Photo } from '../types';
 import Lightbox from './Lightbox';
@@ -88,9 +88,9 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
 
         setAlbum(albumData);
 
+        // Fetch photos without ordering from Firestore to avoid composite index requirement.
         const photosSnapshot = await db.collection('photos')
           .where('albumId', '==', albumId)
-          .orderBy('createdAt', 'asc')
           .get();
 
         const albumPhotos: Photo[] = photosSnapshot.docs.map(doc => ({
@@ -110,10 +110,16 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
     fetchAlbumAndPhotos();
   }, [albumId]);
 
+  // Sort photos on the client-side after they are fetched.
+  const sortedPhotos = useMemo(() => {
+    return [...photos].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+  }, [photos]);
+
+
   const openLightbox = (index: number) => setLightboxIndex(index);
   const closeLightbox = () => setLightboxIndex(null);
-  const nextPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev + 1) % photos.length));
-  const prevPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev - 1 + photos.length) % photos.length));
+  const nextPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev + 1) % sortedPhotos.length));
+  const prevPhoto = () => setLightboxIndex(prev => (prev === null ? null : (prev - 1 + sortedPhotos.length) % sortedPhotos.length));
 
   if (loading) {
     return (
@@ -146,13 +152,13 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
         </div>
       </header>
       <main className="container p-4 mx-auto md:p-6">
-        {photos.length === 0 ? (
+        {sortedPhotos.length === 0 ? (
           <div className="py-20 text-center text-slate-500">
             <p>Este álbum está vacío.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {photos.map((photo, index) => (
+            {sortedPhotos.map((photo, index) => (
               <div
                 key={photo.id}
                 className="overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg cursor-pointer group aspect-square bg-slate-800 hover:scale-105"
@@ -171,7 +177,7 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
       
       {lightboxIndex !== null && (
         <Lightbox 
-          photos={photos} 
+          photos={sortedPhotos} 
           currentIndex={lightboxIndex} 
           onClose={closeLightbox}
           onNext={nextPhoto}
