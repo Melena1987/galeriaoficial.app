@@ -48,18 +48,6 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
 
   if (!currentPhoto) return null;
 
-  const triggerDownload = (blob: Blob, fileName: string) => {
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-  };
-  
   const handleShare = async () => {
     if (isSharing) return;
     setIsSharing(true);
@@ -70,44 +58,46 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
         text: albumName ? `Foto del álbum ${albumName}` : `Foto compartida desde la galería.`,
     };
 
-    // Attempt to fetch blob to share as a file (best experience)
-    try {
-        const response = await fetch(currentPhoto.url);
-        if (!response.ok) throw new Error('Network response was not ok, likely CORS issue.');
-        
-        const blob = await response.blob();
-        const file = new File([blob], fileName, { type: blob.type });
-
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({ ...shareData, files: [file] });
-        } else {
-            // If sharing files is not supported, fallback to download
-            triggerDownload(blob, fileName);
-        }
-    } catch (error) {
-        console.warn('Could not fetch image blob, falling back to URL sharing. Error:', error);
-
-        // Fallback 1: Share URL if blob fetch failed
-        try {
-            if (navigator.share) {
-                await navigator.share({ ...shareData, url: currentPhoto.url });
-                return; // Success, so exit
-            }
-        } catch (shareError) {
-             // If sharing URL fails (e.g., user cancels), we don't want to open a new tab.
-             // Only proceed to final fallback if it's not an AbortError.
-            if ((shareError as DOMException)?.name === 'AbortError') {
-                 return;
-            }
-            console.warn('URL sharing failed, proceeding to final fallback. Error:', shareError);
-        }
-
-        // Fallback 2: Open image in a new tab (most reliable)
+    // La función de fallback universal que se usará si todo lo demás falla.
+    // Es la acción con más probabilidades de ser permitida en un iFrame.
+    const openInNewTab = () => {
         window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
-    } finally {
-        setIsSharing(false);
+    };
+
+    // INTENTO #1: Usar la Web Share API, ideal para móviles.
+    if (navigator.share) {
+        try {
+            // Intentamos primero compartir el archivo de imagen directamente.
+            const response = await fetch(currentPhoto.url);
+            if (!response.ok) throw new Error('Could not fetch image blob.');
+            const blob = await response.blob();
+            const file = new File([blob], fileName, { type: blob.type });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({ ...shareData, files: [file] });
+            } else {
+                // Si no se puede compartir el archivo, intentamos compartir la URL.
+                await navigator.share({ ...shareData, url: currentPhoto.url });
+            }
+        } catch (error) {
+            // Si el usuario cancela la acción, no hacemos nada.
+            if ((error as DOMException)?.name === 'AbortError') {
+                setIsSharing(false);
+                return;
+            }
+            // Si cualquier paso de 'share' falla, usamos el fallback.
+            console.warn('Web Share API failed, falling back to new tab.', error);
+            openInNewTab();
+        }
+    } else {
+        // FALLBACK: Si la Web Share API no existe (ej. escritorio), abrimos en una nueva pestaña.
+        console.log('Web Share API not supported, opening image in a new tab.');
+        openInNewTab();
     }
+
+    setIsSharing(false);
   };
+
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStartX(e.touches[0].clientX);
