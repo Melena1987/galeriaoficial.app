@@ -49,72 +49,56 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
   if (!currentPhoto) return null;
 
   const handleShare = async () => {
-    if (isSharing) return;
+    if (isSharing || !currentPhoto) return;
     setIsSharing(true);
 
-    const fileName = currentPhoto.fileName || `photo-${currentPhoto.id}.jpg`;
+    const { url, fileName } = currentPhoto;
 
-    // Ultimate fallback: open in a new tab if download fails.
-    const openInNewTab = () => {
-        window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
-    };
-    
-    // Primary action for desktop: trigger a file download.
-    const triggerDownload = async () => {
-      try {
-        const response = await fetch(currentPhoto.url);
-        if (!response.ok) throw new Error('Network response was not ok.');
-        
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl); // Clean up
-      } catch (error) {
-        console.error("Download attempt failed. Falling back to opening in new tab.", error);
-        openInNewTab();
-      }
-    };
-    
-    // On mobile, prefer the native share sheet.
-    if (navigator.share) {
-      const shareData = {
-        title: fileName,
-        text: albumName ? `Foto del álbum ${albumName}` : `Foto compartida desde la galería.`,
-      };
-      try {
-        const response = await fetch(currentPhoto.url);
-        if (!response.ok) throw new Error('Could not fetch image blob.');
-        const blob = await response.blob();
-        const file = new File([blob], fileName, { type: blob.type });
+    // This is the most robust method to force a download for cross-origin images.
+    // It works by fetching the image data, creating a temporary local representation (a "blob"),
+    // and then triggering a download for that local data.
+    try {
+      // 1. Fetch the image data. The server (Firebase Storage) MUST be configured with
+      //    CORS headers to allow requests from this web app's origin.
+      const response = await fetch(url);
 
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ ...shareData, files: [file] });
-        } else {
-          // If file sharing is not supported, try sharing the URL as a fallback.
-          await navigator.share({ ...shareData, url: currentPhoto.url });
-        }
-      } catch (error) {
-        if ((error as DOMException)?.name === 'AbortError') {
-          // User cancelled the share dialog, do nothing.
-        } else {
-          // If sharing fails for other reasons, attempt the download.
-          console.warn('Web Share API failed, falling back to download.', error);
-          await triggerDownload();
-        }
+      if (!response.ok) {
+        // If the response is not ok (e.g., 404 Not Found, 403 Forbidden), throw an error.
+        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
       }
-    } else {
-      // On desktop or unsupported platforms, go straight to download.
-      await triggerDownload();
+
+      // 2. Convert the response into a blob (binary large object).
+      const blob = await response.blob();
+
+      // 3. Create a temporary, local URL for the blob.
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      // 4. Create a hidden link element.
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = blobUrl;
+      link.download = fileName; // This attribute tells the browser to download the file.
+
+      // 5. Add the link to the document, click it, and then remove it.
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // 6. Clean up by revoking the temporary URL to free memory.
+      window.URL.revokeObjectURL(blobUrl);
+
+    } catch (error) {
+      console.error('Download failed due to an error:', error);
+      // If the fetch failed (likely due to a CORS issue which is very common),
+      // the ONLY remaining option is to open the image in a new tab.
+      // This allows the user to manually save it. It's the best possible fallback.
+      alert('No se pudo iniciar la descarga directa. Se abrirá la imagen en una nueva pestaña para que puedas guardarla manualmente.');
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } finally {
+      setIsSharing(false);
     }
-
-    setIsSharing(false);
   };
+
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStartX(e.touches[0].clientX);
@@ -152,11 +136,12 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
           onClick={(e) => { e.stopPropagation(); handleShare(); }}
           disabled={isSharing}
           className="transition-transform hover:scale-110 disabled:cursor-not-allowed"
-          aria-label="Compartir o descargar imagen"
+          aria-label="Descargar imagen"
+          title="Descargar imagen"
         >
           {isSharing ? <Spinner className="w-6 h-6 border-2" /> : (
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8m-4-6l-4-4m0 0L8 6m4-4v12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
           )}
         </button>
