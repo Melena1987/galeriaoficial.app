@@ -78,35 +78,50 @@ const Gallery: React.FC = () => {
     if (!window.confirm("¿Estás seguro de que quieres eliminar este álbum y todas sus fotos? Esta acción no se puede deshacer.")) return;
     
     try {
+      // Step 1: Query for all photo documents in the album to get their storage URLs.
       const photosQuery = db.collection('photos')
         .where('albumId', '==', albumId)
         .where('userId', '==', user.uid);
       
       const photosSnapshot = await photosQuery.get();
       
+      // Step 2: Concurrently delete all associated files from Cloud Storage.
+      const storageDeletePromises = photosSnapshot.docs.map(doc => {
+        const photoData = doc.data() as Photo;
+        if (photoData.url) {
+          const photoRef = storage.refFromURL(photoData.url);
+          return photoRef.delete().catch(error => {
+            // It's okay if the file is already gone. Log other errors.
+            if (error.code !== 'storage/object-not-found') {
+              console.error(`Error deleting file ${photoData.fileName} from storage:`, error);
+            }
+          });
+        }
+        return Promise.resolve();
+      });
+
+      await Promise.all(storageDeletePromises);
+      
+      // Step 3: Delete the album and all its photo documents from Firestore in a single atomic batch.
       const batch = db.batch();
 
-      for (const doc of photosSnapshot.docs) {
-          const photoData = doc.data() as Photo;
-          if (photoData.url) {
-              try {
-                  const photoRef = storage.refFromURL(photoData.url);
-                  await photoRef.delete();
-              } catch(storageError: any) {
-                  if (storageError.code !== 'storage/object-not-found') {
-                    console.error("Error deleting photo from storage:", storageError);
-                  }
-              }
-          }
-          batch.delete(doc.ref);
-      }
+      photosSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      
+      const albumRef = db.collection('albums').doc(albumId);
+      batch.delete(albumRef);
 
       await batch.commit();
-      
-      await db.collection('albums').doc(albumId).delete();
-    } catch (error) {
+
+    } catch (error: any) {
         console.error("Error deleting album and its photos:", error);
-        alert("Error al eliminar el álbum.");
+        let userMessage = "Error al eliminar el álbum.";
+        // Provide a more specific message for the most likely cause.
+        if (error.code === 'permission-denied') {
+          userMessage = "No tienes permisos para eliminar este álbum. Contacta al administrador.";
+        }
+        alert(userMessage);
     }
   };
   
