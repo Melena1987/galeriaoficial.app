@@ -22,7 +22,16 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album: initialAlbum, onBack }
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
+  
+  // Initialize sortOrder from localStorage, defaulting to 'newest'.
+  const [sortOrder, setSortOrder] = useState<SortOrder>(() => {
+    const savedOrder = localStorage.getItem(`albumSortOrder_${initialAlbum.id}`);
+    // Type guard to ensure the saved value is valid.
+    if (savedOrder === 'newest' || savedOrder === 'oldest' || savedOrder === 'name_asc' || savedOrder === 'name_desc') {
+      return savedOrder;
+    }
+    return 'newest';
+  });
 
   const user = auth.currentUser;
   const isAdmin = user?.email === 'manudesignsforyou@gmail.com';
@@ -62,6 +71,11 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album: initialAlbum, onBack }
 
     return () => unsubscribe();
   }, [album.id, user]);
+
+  // Save the sort order to localStorage whenever it changes for the current album.
+  useEffect(() => {
+    localStorage.setItem(`albumSortOrder_${album.id}`, sortOrder);
+  }, [sortOrder, album.id]);
 
   const sortedPhotos = useMemo(() => {
     const sortablePhotos = [...photos];
