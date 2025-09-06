@@ -21,6 +21,7 @@ const Gallery: React.FC = () => {
 
   const [albumToShare, setAlbumToShare] = useState<Album | null>(null);
   const [isShareModalOpen, setShareModalOpen] = useState(false);
+  const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
 
   const user = auth.currentUser;
   const isAdmin = user?.email === 'manudesignsforyou@gmail.com';
@@ -66,7 +67,7 @@ const Gallery: React.FC = () => {
       setCreateModalOpen(false);
     } catch (error) {
       console.error("Error creating album:", error);
-      alert("Error al crear el álbum.");
+      setAlertInfo({ title: "Error", message: "Error al crear el álbum." });
     }
   };
 
@@ -117,11 +118,13 @@ const Gallery: React.FC = () => {
     } catch (error: any) {
         console.error("Error deleting album and its photos:", error);
         let userMessage = "Error al eliminar el álbum.";
+        let title = "Error";
         // Provide a more specific message for the most likely cause.
         if (error.code === 'permission-denied') {
+          title = "Permiso Denegado";
           userMessage = "No tienes permisos para eliminar este álbum. Contacta al administrador.";
         }
-        alert(userMessage);
+        setAlertInfo({ title, message: userMessage });
     }
   };
   
@@ -228,6 +231,24 @@ const Gallery: React.FC = () => {
           }}
           album={albumToShare}
         />
+      )}
+
+      {/* Alert Modal */}
+      {!!alertInfo && (
+        <Modal
+          isOpen={!!alertInfo}
+          onClose={() => setAlertInfo(null)}
+          title={alertInfo.title}
+        >
+          <div>
+            <p className="text-slate-300">{alertInfo.message}</p>
+            <div className="flex justify-end gap-4 mt-6">
+                <button type="button" onClick={() => setAlertInfo(null)} className="px-4 py-2 font-semibold text-white transition-colors rounded-md bg-violet-600 hover:bg-violet-700">
+                    Aceptar
+                </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

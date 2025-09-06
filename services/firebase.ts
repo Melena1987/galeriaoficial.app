@@ -26,3 +26,63 @@ export const auth = firebase.auth();
 export const db = firebase.firestore();
 export const storage = firebase.storage();
 export const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+/*
+================================================================================
+NOTAS SOBRE LAS REGLAS DE SEGURIDAD DE FIREBASE
+================================================================================
+
+Estas reglas son cruciales para la seguridad y el funcionamiento de la aplicación,
+especialmente para la función de eliminar álbumes. Deben ser copiadas y pegadas
+en la sección "Rules" correspondiente en la consola de Firebase.
+
+--- 1. REGLAS DE FIRESTORE DATABASE ---
+(Ir a Build -> Firestore Database -> Rules)
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Reglas para la colección de Álbumes
+    match /albums/{albumId} {
+      // Cualquiera puede leer un álbum si es público.
+      // El dueño siempre puede leer sus propios álbumes.
+      allow read: if resource.data.isPublic == true || request.auth.uid == resource.data.userId;
+      
+      // Un usuario solo puede crear álbumes para sí mismo.
+      allow create: if request.auth.uid != null && request.resource.data.userId == request.auth.uid;
+      
+      // Solo el dueño del álbum puede actualizarlo o borrarlo.
+      allow update, delete: if request.auth.uid == resource.data.userId;
+    }
+    
+    // Reglas para la colección de Fotos
+    match /photos/{photoId} {
+      // Las fotos se pueden leer si el álbum es público o si eres el dueño.
+      allow read: if get(/databases/$(database)/documents/albums/$(resource.data.albumId)).data.isPublic == true 
+                  || request.auth.uid == resource.data.userId;
+      
+      // Un usuario solo puede crear fotos para sí mismo.
+      allow create: if request.auth.uid != null && request.resource.data.userId == request.auth.uid;
+      
+      // Solo el dueño de la foto puede borrarla.
+      allow delete: if request.auth.uid == resource.data.userId;
+    }
+  }
+}
+
+--- 2. REGLAS DE CLOUD STORAGE ---
+(Ir a Build -> Storage -> Rules)
+(La regla 'write' incluye crear, actualizar y borrar)
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Los usuarios solo pueden leer, subir y borrar sus propias fotos.
+    // La ruta del archivo debe contener el ID del usuario.
+    match /users/{userId}/photos/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+*/
