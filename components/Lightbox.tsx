@@ -89,35 +89,47 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartX === null) return;
+    if (touchStartX === null || !isSwiping) return;
     setTouchDeltaX(e.touches[0].clientX - touchStartX);
   };
 
   const handleTouchEnd = () => {
     if (touchStartX === null) return;
-    setIsSwiping(false);
+    setIsSwiping(false); // Enable CSS transitions
     const swipeThreshold = 50;
+
     if (Math.abs(touchDeltaX) > swipeThreshold) {
+      // Successful swipe, trigger animation
       setIsAnimatingOut(true);
     } else {
+      // Not a big enough swipe, animate back to center
       setTouchDeltaX(0);
     }
     setTouchStartX(null);
   };
   
   const handleTransitionEnd = (e: React.TransitionEvent) => {
+    // Fires after the "swipe out" animation is complete
     if (e.propertyName !== 'transform' || !isAnimatingOut) return;
+
     if (touchDeltaX < 0) {
       onNext();
     } else {
       onPrev();
     }
+    
+    // Reset state for the new image to appear correctly
     setIsAnimatingOut(false);
     setTouchDeltaX(0);
   };
 
+  // Correctly calculates the transform value and its unit (px or vw)
+  const transformValue = isAnimatingOut
+    ? (touchDeltaX < 0 ? '-100vw' : '100vw')
+    : `${touchDeltaX}px`;
+
   const imageContainerStyle: React.CSSProperties = {
-    transform: `translateX(${isAnimatingOut ? (touchDeltaX < 0 ? '-100vw' : '100vw') : touchDeltaX}px)`,
+    transform: `translateX(${transformValue})`,
     transition: isSwiping ? 'none' : 'transform 0.3s ease-out',
   };
 
