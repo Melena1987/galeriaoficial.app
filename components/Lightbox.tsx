@@ -11,8 +11,8 @@ interface LightboxProps {
   albumName?: string;
 }
 
-const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, onPrev }) => {
-  const [isSharing, setIsSharing] = useState(false);
+const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, onPrev, albumName }) => {
+  const [isActionInProgress, setIsActionInProgress] = useState(false);
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   
   // State for swipe gestures
@@ -56,33 +56,41 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
 
   if (!currentPhoto) return null;
 
-  // Handler to download the current image
-  const handleShare = async (e: React.MouseEvent) => {
+  // Smart handler to share on mobile or download on desktop
+  const handleDownloadOrShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isSharing) return;
-    setIsSharing(true);
+    if (isActionInProgress) return;
+    setIsActionInProgress(true);
 
     try {
-      // Use fetch to get the image as a blob, which bypasses CORS issues for downloads
       const response = await fetch(currentPhoto.url);
-      if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
+      if (!response.ok) throw new Error('Network response was not ok');
       const blob = await response.blob();
-      
-      // Create a temporary link to trigger the download
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = currentPhoto.fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(link.href); // Clean up the object URL
+      const file = new File([blob], currentPhoto.fileName, { type: blob.type });
+
+      // Use Web Share API if available (modern mobile browsers)
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: currentPhoto.fileName,
+          text: `Imagen del álbum "${albumName}"`,
+        });
+      } else {
+        // Fallback to direct download for desktop browsers
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = currentPhoto.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+      }
     } catch (error) {
-      console.error('Download failed:', error);
-      // Fallback to opening in a new tab if blob download fails
-      alert('No se pudo iniciar la descarga directa. Se abrirá la imagen en una nueva pestaña para que puedas guardarla manualmente.');
+      console.error('Download/Share failed, falling back to new tab:', error);
+      // Ultimate fallback: open in a new tab. This works everywhere and avoids alerts.
       window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
     } finally {
-      setIsSharing(false);
+      setIsActionInProgress(false);
     }
   };
 
@@ -131,13 +139,13 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       {/* Top bar with controls */}
       <div className="absolute top-0 right-0 z-20 flex items-center gap-4 p-4 text-white">
         <button
-          onClick={handleShare}
-          disabled={isSharing}
+          onClick={handleDownloadOrShare}
+          disabled={isActionInProgress}
           className="p-2 transition-transform rounded-full hover:bg-white/10 hover:scale-110 disabled:cursor-not-allowed"
-          aria-label="Descargar imagen"
-          title="Descargar imagen"
+          aria-label="Descargar o compartir imagen"
+          title="Descargar o compartir imagen"
         >
-          {isSharing ? <Spinner className="w-6 h-6 border-2" /> : (
+          {isActionInProgress ? <Spinner className="w-6 h-6 border-2" /> : (
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
