@@ -19,6 +19,11 @@ const Gallery: React.FC = () => {
   const [newAlbumName, setNewAlbumName] = useState('');
   const [newAlbumDescription, setNewAlbumDescription] = useState('');
 
+  const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [albumToEdit, setAlbumToEdit] = useState<Album | null>(null);
+  const [editedAlbumName, setEditedAlbumName] = useState('');
+  const [editedAlbumDescription, setEditedAlbumDescription] = useState('');
+
   const [albumToShare, setAlbumToShare] = useState<Album | null>(null);
   const [isShareModalOpen, setShareModalOpen] = useState(false);
   const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
@@ -70,6 +75,31 @@ const Gallery: React.FC = () => {
       setAlertInfo({ title: "Error", message: "Error al crear el álbum." });
     }
   };
+
+  const handleOpenEditModal = (album: Album) => {
+    setAlbumToEdit(album);
+    setEditedAlbumName(album.name);
+    setEditedAlbumDescription(album.description || '');
+    setEditModalOpen(true);
+  };
+
+  const handleUpdateAlbum = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!albumToEdit || !editedAlbumName.trim()) return;
+
+    try {
+      await db.collection('albums').doc(albumToEdit.id).update({
+        name: editedAlbumName,
+        description: editedAlbumDescription,
+      });
+      setEditModalOpen(false);
+      setAlbumToEdit(null);
+    } catch (error) {
+      console.error("Error updating album:", error);
+      setAlertInfo({ title: "Error", message: "Error al actualizar el álbum." });
+    }
+  };
+
 
   const handleDeleteAlbum = async (albumId: string) => {
     if (!user) {
@@ -175,6 +205,7 @@ const Gallery: React.FC = () => {
                 onClick={() => setSelectedAlbum(album)}
                 onDelete={() => handleDeleteAlbum(album.id)}
                 onShare={() => handleOpenShareModal(album)}
+                onEdit={() => handleOpenEditModal(album)}
                 isAdmin={isAdmin}
               />
             ))}
@@ -218,6 +249,46 @@ const Gallery: React.FC = () => {
                       Crear
                   </button>
               </div>
+          </form>
+        </Modal>
+      )}
+
+      {isAdmin && albumToEdit && (
+        <Modal
+          isOpen={isEditModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          title="Editar Álbum"
+        >
+          <form onSubmit={handleUpdateAlbum}>
+            <div className="mb-4">
+              <label htmlFor="editAlbumName" className="block mb-2 text-sm font-medium text-gray-300">Nombre del Álbum</label>
+              <input
+                type="text"
+                id="editAlbumName"
+                value={editedAlbumName}
+                onChange={(e) => setEditedAlbumName(e.target.value)}
+                className="w-full px-3 py-2 text-gray-300 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500"
+                required
+              />
+            </div>
+            <div className="mb-6">
+              <label htmlFor="editAlbumDescription" className="block mb-2 text-sm font-medium text-gray-300">Descripción (opcional)</label>
+              <textarea
+                id="editAlbumDescription"
+                value={editedAlbumDescription}
+                onChange={(e) => setEditedAlbumDescription(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 text-gray-300 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500"
+              />
+            </div>
+            <div className="flex justify-end gap-4 mt-6">
+              <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 text-gray-300 transition-colors bg-gray-600 rounded-md hover:bg-gray-500">
+                Cancelar
+              </button>
+              <button type="submit" className="px-4 py-2 font-semibold text-white transition-colors bg-violet-600 rounded-md hover:bg-violet-700">
+                Guardar Cambios
+              </button>
+            </div>
           </form>
         </Modal>
       )}
