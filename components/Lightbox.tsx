@@ -53,51 +53,68 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
     setIsSharing(true);
 
     const fileName = currentPhoto.fileName || `photo-${currentPhoto.id}.jpg`;
-    const shareData = {
-        title: fileName,
-        text: albumName ? `Foto del álbum ${albumName}` : `Foto compartida desde la galería.`,
-    };
 
-    // La función de fallback universal que se usará si todo lo demás falla.
-    // Es la acción con más probabilidades de ser permitida en un iFrame.
+    // Ultimate fallback: open in a new tab if download fails.
     const openInNewTab = () => {
         window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
     };
-
-    // INTENTO #1: Usar la Web Share API, ideal para móviles.
-    if (navigator.share) {
-        try {
-            // Intentamos primero compartir el archivo de imagen directamente.
-            const response = await fetch(currentPhoto.url);
-            if (!response.ok) throw new Error('Could not fetch image blob.');
-            const blob = await response.blob();
-            const file = new File([blob], fileName, { type: blob.type });
-
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({ ...shareData, files: [file] });
-            } else {
-                // Si no se puede compartir el archivo, intentamos compartir la URL.
-                await navigator.share({ ...shareData, url: currentPhoto.url });
-            }
-        } catch (error) {
-            // Si el usuario cancela la acción, no hacemos nada.
-            if ((error as DOMException)?.name === 'AbortError') {
-                setIsSharing(false);
-                return;
-            }
-            // Si cualquier paso de 'share' falla, usamos el fallback.
-            console.warn('Web Share API failed, falling back to new tab.', error);
-            openInNewTab();
-        }
-    } else {
-        // FALLBACK: Si la Web Share API no existe (ej. escritorio), abrimos en una nueva pestaña.
-        console.log('Web Share API not supported, opening image in a new tab.');
+    
+    // Primary action for desktop: trigger a file download.
+    const triggerDownload = async () => {
+      try {
+        const response = await fetch(currentPhoto.url);
+        if (!response.ok) throw new Error('Network response was not ok.');
+        
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl); // Clean up
+      } catch (error) {
+        console.error("Download attempt failed. Falling back to opening in new tab.", error);
         openInNewTab();
+      }
+    };
+    
+    // On mobile, prefer the native share sheet.
+    if (navigator.share) {
+      const shareData = {
+        title: fileName,
+        text: albumName ? `Foto del álbum ${albumName}` : `Foto compartida desde la galería.`,
+      };
+      try {
+        const response = await fetch(currentPhoto.url);
+        if (!response.ok) throw new Error('Could not fetch image blob.');
+        const blob = await response.blob();
+        const file = new File([blob], fileName, { type: blob.type });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ ...shareData, files: [file] });
+        } else {
+          // If file sharing is not supported, try sharing the URL as a fallback.
+          await navigator.share({ ...shareData, url: currentPhoto.url });
+        }
+      } catch (error) {
+        if ((error as DOMException)?.name === 'AbortError') {
+          // User cancelled the share dialog, do nothing.
+        } else {
+          // If sharing fails for other reasons, attempt the download.
+          console.warn('Web Share API failed, falling back to download.', error);
+          await triggerDownload();
+        }
+      }
+    } else {
+      // On desktop or unsupported platforms, go straight to download.
+      await triggerDownload();
     }
 
     setIsSharing(false);
   };
-
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStartX(e.touches[0].clientX);
