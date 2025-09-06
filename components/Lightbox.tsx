@@ -1,4 +1,4 @@
-import React, { useEffect, FC, useState, useRef } from 'react';
+import React, { useEffect, FC, useState } from 'react';
 import { Photo } from '../types';
 import Spinner from './Spinner';
 
@@ -13,35 +13,15 @@ interface LightboxProps {
 
 const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, onPrev }) => {
   const [isSharing, setIsSharing] = useState(false);
+  const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  
+  // State for swipe gestures
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchDeltaX, setTouchDeltaX] = useState(0);
-  const [isSwiping, setIsSwiping] = useState(false);
-  const [imageQualities, setImageQualities] = useState<Record<string, 'high' | 'low'>>({});
-
-  const prevIndex = (currentIndex - 1 + photos.length) % photos.length;
-  const nextIndex = (currentIndex + 1) % photos.length;
+  const [touchEndX, setTouchEndX] = useState<number | null>(null);
 
   const currentPhoto = photos[currentIndex];
-  const prevPhoto = photos[prevIndex];
-  const nextPhoto = photos[nextIndex];
 
-  const hasHighQuality = (photo?: Photo) => photo && imageQualities[photo.id] === 'high';
-
-  const preloadImage = (photo: Photo) => {
-    if (!photo || imageQualities[photo.id]) return;
-    const img = new Image();
-    img.src = photo.url;
-    img.onload = () => {
-      setImageQualities(prev => ({ ...prev, [photo.id]: 'high' }));
-    };
-  };
-
-  useEffect(() => {
-    preloadImage(currentPhoto);
-    preloadImage(nextPhoto);
-    preloadImage(prevPhoto);
-  }, [currentIndex, photos]);
-  
+  // Effect for keyboard navigation and disabling body scroll
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -56,156 +36,188 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
     };
   }, [onClose, onNext, onPrev]);
 
+  // Effect to load the current image and preload adjacent ones
+  useEffect(() => {
+    if (!currentPhoto) return;
+
+    setImageStatus('loading');
+    const img = new Image();
+    img.src = currentPhoto.url;
+    img.onload = () => setImageStatus('loaded');
+    img.onerror = () => setImageStatus('error');
+    
+    // Preload next and previous images
+    const nextPhoto = photos[(currentIndex + 1) % photos.length];
+    const prevPhoto = photos[(currentIndex - 1 + photos.length) % photos.length];
+    if (nextPhoto) new Image().src = nextPhoto.url;
+    if (prevPhoto) new Image().src = prevPhoto.url;
+
+  }, [currentIndex, photos, currentPhoto]);
+
   if (!currentPhoto) return null;
 
-  const handleShare = async () => {
+  // Handler to download the current image
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (isSharing) return;
     setIsSharing(true);
-    const { url, fileName } = currentPhoto;
+
     try {
-      const response = await fetch(url);
+      // Use fetch to get the image as a blob, which bypasses CORS issues for downloads
+      const response = await fetch(currentPhoto.url);
       if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
       const blob = await response.blob();
+      
+      // Create a temporary link to trigger the download
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = fileName;
+      link.download = currentPhoto.fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(link.href);
+      URL.revokeObjectURL(link.href); // Clean up the object URL
     } catch (error) {
       console.error('Download failed:', error);
+      // Fallback to opening in a new tab if blob download fails
       alert('No se pudo iniciar la descarga directa. Se abrirá la imagen en una nueva pestaña para que puedas guardarla manualmente.');
-      window.open(url, '_blank', 'noopener,noreferrer');
+      window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
     } finally {
       setIsSharing(false);
     }
   };
 
+  // Touch event handlers for swipe navigation
   const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStartX(e.touches[0].clientX);
-    setIsSwiping(true);
+    setTouchEndX(null); // Reset end coordinate
+    setTouchStartX(e.targetTouches[0].clientX);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartX === null) return;
-    setTouchDeltaX(e.touches[0].clientX - touchStartX);
+    setTouchEndX(e.targetTouches[0].clientX);
   };
 
   const handleTouchEnd = () => {
-    if (touchStartX === null) return;
-    setIsSwiping(false);
-    const swipeThreshold = window.innerWidth / 4;
+    if (!touchStartX || !touchEndX) return;
+    const distance = touchStartX - touchEndX;
+    const swipeThreshold = 50; // Minimum distance for a swipe
 
-    if (touchDeltaX < -swipeThreshold) {
+    if (distance > swipeThreshold) {
       onNext();
-    } else if (touchDeltaX > swipeThreshold) {
+    } else if (distance < -swipeThreshold) {
       onPrev();
-    } else {
-      setTouchDeltaX(0);
     }
+    
+    // Reset coordinates
     setTouchStartX(null);
+    setTouchEndX(null);
   };
 
-  const handleTransitionEnd = () => {
-      // After a transition to a new image, reset the delta.
-      if (touchDeltaX !== 0) {
-          setTouchDeltaX(0);
-      }
-  };
-
-  const filmstripStyle: React.CSSProperties = {
-    display: 'flex',
-    transform: `translateX(calc(-100% + ${touchDeltaX}px))`,
-    transition: isSwiping ? 'none' : 'transform 0.35s cubic-bezier(0.25, 0.1, 0.25, 1)',
-  };
-
-  const ImageComponent = ({ photo }: { photo?: Photo }) => {
-    if (!photo) return <div className="relative flex-shrink-0 w-full h-full" />;
-    return (
-      <div className="relative flex-shrink-0 w-full h-full" draggable="false">
-        <img
-          src={photo.url}
-          alt={photo.fileName}
-          className="object-contain w-full h-full max-w-full max-h-full"
-          style={{
-            opacity: hasHighQuality(photo) ? 1 : 0,
-            transition: 'opacity 0.5s',
-          }}
-          draggable="false"
-        />
-        {!hasHighQuality(photo) && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Spinner />
-          </div>
-        )}
-      </div>
-    );
+  // Wrapper for navigation clicks to stop propagation
+  const navigate = (e: React.MouseEvent, direction: 'next' | 'prev') => {
+      e.stopPropagation();
+      if (direction === 'next') onNext();
+      else onPrev();
   };
 
   return (
+    // Main overlay, closes on click
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-90"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-black bg-opacity-90"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Image viewer"
     >
-      <div className="absolute z-10 flex items-center gap-4 p-2 text-white transition-opacity bg-black rounded-full top-4 right-4 bg-opacity-40">
+      {/* Top bar with controls */}
+      <div className="absolute top-0 right-0 z-20 flex items-center gap-4 p-4 text-white">
         <button
-          onClick={(e) => { e.stopPropagation(); handleShare(); }}
+          onClick={handleShare}
           disabled={isSharing}
-          className="transition-transform hover:scale-110 disabled:cursor-not-allowed"
+          className="p-2 transition-transform rounded-full hover:bg-white/10 hover:scale-110 disabled:cursor-not-allowed"
           aria-label="Descargar imagen"
           title="Descargar imagen"
         >
           {isSharing ? <Spinner className="w-6 h-6 border-2" /> : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
           )}
         </button>
-        <button onClick={onClose} className="transition-transform hover:scale-110" aria-label="Cerrar">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        <button onClick={onClose} className="p-2 transition-transform rounded-full hover:bg-white/10 hover:scale-110" aria-label="Cerrar">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
-      <div
-        className="relative w-full h-full overflow-hidden"
-        onClick={e => e.stopPropagation()}
+      {/* Main content: Navigation arrows and image */}
+      <div 
+        className="relative flex items-center justify-center w-full h-full max-h-full"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking on the image area
       >
-        <div style={filmstripStyle} onTransitionEnd={handleTransitionEnd}>
-          <ImageComponent photo={prevPhoto} />
-          <ImageComponent photo={currentPhoto} />
-          <ImageComponent photo={nextPhoto} />
+        {/* Previous Button */}
+        <button
+          onClick={(e) => navigate(e, 'prev')}
+          className="absolute left-0 z-20 p-3 m-2 text-white transition-opacity bg-black rounded-full top-1/2 -translate-y-1/2 bg-opacity-40 hover:bg-opacity-60"
+          aria-label="Anterior"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        {/* Image Container with animation key */}
+        <div key={currentIndex} className="relative flex items-center justify-center w-full h-full">
+          {imageStatus === 'loading' && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Spinner />
+            </div>
+          )}
+          {imageStatus === 'error' && (
+             <div className="text-center text-rose-400">
+                <p>Error al cargar la imagen.</p>
+                <p className='text-sm text-slate-400'>{currentPhoto.fileName}</p>
+             </div>
+          )}
+          <img
+            src={currentPhoto.url}
+            alt={currentPhoto.fileName}
+            className={`
+              block object-contain w-auto h-auto max-w-full max-h-full transition-opacity duration-300
+              ${imageStatus === 'loaded' ? 'opacity-100' : 'opacity-0'}
+            `}
+            style={{ animation: imageStatus === 'loaded' ? 'fadeIn 0.3s ease-in-out' : 'none' }}
+            draggable="false"
+          />
         </div>
+
+        {/* Next Button */}
+        <button
+          onClick={(e) => navigate(e, 'next')}
+          className="absolute right-0 z-20 p-3 m-2 text-white transition-opacity bg-black rounded-full top-1/2 -translate-y-1/2 bg-opacity-40 hover:bg-opacity-60"
+          aria-label="Siguiente"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       </div>
-      
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black bg-opacity-50 text-white text-sm rounded-md">
+
+      {/* Bottom bar with counter */}
+      <div className="absolute bottom-0 z-20 px-3 py-1 m-4 text-sm text-white bg-black rounded-md bg-opacity-50">
            {currentIndex + 1} / {photos.length}
       </div>
 
-      <button
-        onClick={(e) => { e.stopPropagation(); onPrev(); }}
-        className="absolute left-4 top-1/2 -translate-y-1/2 p-2 text-white transition-opacity bg-black rounded-full bg-opacity-40 hover:bg-opacity-60 hidden md:block"
-        aria-label="Anterior"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-
-      <button
-        onClick={(e) => { e.stopPropagation(); onNext(); }}
-        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-white transition-opacity bg-black rounded-full bg-opacity-40 hover:bg-opacity-60 hidden md:block"
-        aria-label="Siguiente"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
+      {/* Add keyframes for animation */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
     </div>
   );
 };
