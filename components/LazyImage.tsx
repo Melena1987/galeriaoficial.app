@@ -15,14 +15,18 @@ const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className, placeholderC
     // Si no hay src, no hay nada que observar o cargar.
     if (!src) return;
 
+    // Capturamos el nodo actual. Esto es clave porque ref.current puede cambiar.
+    const node = ref.current;
+    if (!node) return;
+
+    // Creamos el observador de intersección.
     const observer = new IntersectionObserver(
       ([entry]) => {
+        // Cuando el placeholder es visible, actualizamos el estado para cargar la imagen.
         if (entry.isIntersecting) {
           setIsLoaded(true);
-          // Una vez cargado, dejamos de observar.
-          if (ref.current) {
-            observer.unobserve(ref.current);
-          }
+          // Una vez que lo hemos visto, ya no necesitamos observar este nodo.
+          observer.unobserve(node);
         }
       },
       {
@@ -30,24 +34,23 @@ const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className, placeholderC
       }
     );
 
-    if (ref.current) {
-      observer.observe(ref.current);
-    }
+    // Empezamos a observar el elemento placeholder.
+    observer.observe(node);
 
+    // La función de limpieza se asegura de dejar de observar si el componente se desmonta.
     return () => {
-      if (ref.current) {
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        observer.unobserve(ref.current);
-      }
+      observer.unobserve(node);
     };
-  }, [src]); // Dependemos de src para re-evaluar si cambia.
+  }, [src]); // El efecto se vuelve a ejecutar si la URL de la imagen (src) cambia.
 
-  // Si no hay src o todavía no se ha cargado, mostramos el placeholder.
+  // Si aún no hemos detectado que la imagen está visible o si no hay 'src',
+  // mostramos el 'div' que actúa como placeholder. La ref se adjunta aquí.
   if (!isLoaded || !src) {
     return <div ref={ref} className={`${className} ${placeholderClassName}`} aria-label={alt} />;
   }
 
-  // Una vez que el observer da la señal, renderizamos la imagen real.
+  // Una vez que isLoaded es true, renderizamos la etiqueta <img> real.
+  // El navegador se encargará de descargar y mostrar la imagen.
   return <img src={src} alt={alt} className={className} decoding="async" />;
 };
 
