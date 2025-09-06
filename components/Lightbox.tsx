@@ -14,6 +14,7 @@ interface LightboxProps {
 const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, onPrev, albumName }) => {
   const [isActionInProgress, setIsActionInProgress] = useState(false);
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [showToast, setShowToast] = useState(false);
   
   // State for swipe gestures
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -87,8 +88,10 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       }
     } catch (error) {
       console.error('Download/Share failed, falling back to new tab:', error);
-      // Ultimate fallback: open in a new tab. This works everywhere and avoids alerts.
+      // Ultimate fallback: open in a new tab and show guidance toast.
       window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2500); // Show for 2.5 seconds
     } finally {
       setIsActionInProgress(false);
     }
@@ -212,6 +215,17 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
           </svg>
         </button>
+      </div>
+
+      {/* Toast Notification */}
+      <div className={`
+        absolute left-1/2 -translate-x-1/2 bottom-16 z-30
+        px-4 py-2 text-sm text-white rounded-lg shadow-lg
+        bg-slate-800/90 ring-1 ring-white/10
+        transition-all duration-300 ease-in-out
+        ${showToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}
+      `}>
+        Mantén pulsada la foto para guardarla
       </div>
 
       {/* Bottom bar with counter */}
