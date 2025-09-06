@@ -9,7 +9,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyB_EcU2lLQR8fads3cz_o_hifog9Vn-nys",
   authDomain: "galeriaoficialapp.firebaseapp.com",
   projectId: "galeriaoficialapp",
-  storageBucket: "galeriaoficialapp.firebasestorage.app",
+  storageBucket: "galeriaoficialapp.appspot.com",
   messagingSenderId: "149378720195",
   appId: "1:149378720195:web:a853d89c22ee12b4f5dd76"
 };
@@ -28,6 +28,61 @@ export const storage = firebase.storage();
 export const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 /*
+================================================================================
+SOLUCIÓN AL PROBLEMA DE DESCARGA DIRECTA (CORS)
+================================================================================
+
+--- EL PROBLEMA ---
+La funcionalidad de descarga directa en el Lightbox falla y muestra el alert de
+"No se pudo iniciar la descarga directa..." porque el navegador bloquea la petición
+que el código Javascript (desde galeriaoficial.app) hace para obtener la imagen
+desde Firebase Storage (firebasestorage.googleapis.com).
+
+Esto es una medida de seguridad estándar del navegador llamada "Cross-Origin
+Resource Sharing" (CORS). El servidor de Storage debe dar permiso explícito
+para que otros dominios puedan solicitar sus archivos.
+
+--- LA SOLUCIÓN ---
+Debemos aplicar una configuración CORS a nuestro bucket de Firebase Storage para
+que confíe en nuestra aplicación web.
+
+--- INSTRUCCIONES (REALIZAR UNA SOLA VEZ) ---
+
+1.  **Abre Google Cloud Shell:**
+    a. Ve a tu consola de Google Cloud: https://console.cloud.google.com/
+    b. Asegúrate de que estás en el proyecto correcto ("galeriaoficialapp").
+    c. Haz clic en el icono "Activar Cloud Shell" en la parte superior derecha
+       (parece un ">_"). Se abrirá una terminal en la parte inferior.
+
+2.  **Crea el archivo de configuración:**
+    a. En la terminal de Cloud Shell, escribe `touch cors.json` y pulsa Enter.
+    b. Luego, escribe `nano cors.json` y pulsa Enter. Se abrirá un editor de texto.
+    c. Copia y pega el siguiente contenido EXACTAMENTE dentro del editor:
+
+    [
+      {
+        "origin": ["https://galeriaoficial.app"],
+        "method": ["GET"],
+        "maxAgeSeconds": 3600
+      }
+    ]
+
+    d. Guarda y cierra el editor: pulsa `Ctrl+X`, luego `Y`, y finalmente `Enter`.
+
+3.  **Aplica la configuración al bucket:**
+    a. Ejecuta el siguiente comando en la terminal de Cloud Shell. Este comando
+       le dice a tu bucket de storage que use las reglas del archivo que acabas de crear.
+
+    gsutil cors set cors.json gs://galeriaoficialapp.appspot.com
+
+    b. Si el comando es exitoso, verás un mensaje como:
+       "Setting CORS on gs://galeriaoficialapp.appspot.com/..."
+
+4.  **Espera y prueba:**
+    a. Los cambios pueden tardar unos minutos en aplicarse globalmente.
+    b. Vuelve a tu aplicación web e intenta descargar una imagen de nuevo.
+       La descarga directa debería funcionar sin el alert.
+
 ================================================================================
 NOTAS SOBRE LAS REGLAS DE SEGURIDAD DE FIREBASE
 ================================================================================
