@@ -93,4 +93,28 @@ service firebase.storage {
     }
   }
 }
+
+================================================================================
+NOTA SOBRE EL SERVICIO DE CLOUD RUN (API PÚBLICA)
+================================================================================
+
+Para permitir la integración con servicios externos como Velo by Wix, que no pueden
+autenticarse directamente con Firebase, se ha creado un servicio en Google Cloud Run.
+
+- Nombre del Servicio: getpublicalbum
+- Propósito: Actúa como una API pública que expone los datos de los álbumes marcados
+  como públicos. Recibe un ID de álbum y devuelve sus detalles y fotos.
+- Autenticación: El servicio está configurado para "Permitir invocaciones no autenticadas",
+  lo que significa que cualquiera con la URL puede acceder a él. La lógica interna
+  del código (index.js) se encarga de verificar si el álbum solicitado es público.
+- Despliegue: Se ha desplegado utilizando la terminal de Cloud Shell con el siguiente
+  comando (o similar), después de crear los archivos index.js y package.json:
+  
+  gcloud run deploy getpublicalbum --source . --region=europe-west2 --allow-unauthenticated --set-env-vars=GOOGLE_FUNCTION_TARGET=getPublicAlbum
+  
+- URL del Endpoint: La URL final es generada por Cloud Run al finalizar el despliegue.
+  Esa es la URL que debe ser utilizada por el servicio externo (ej: Velo).
+
+Esta aplicación frontend NO consume esta API directamente, ya que tiene acceso
+autenticado a Firestore. Esta API es exclusivamente para consumidores externos.
 */
