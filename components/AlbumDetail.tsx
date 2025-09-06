@@ -369,6 +369,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({ album: initialAlbum, onBack }
           onClose={closeLightbox}
           onNext={nextPhoto}
           onPrev={prevPhoto}
+          albumName={album.name}
         />
       )}
     </div>

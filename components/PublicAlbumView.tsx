@@ -176,6 +176,7 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
           onClose={closeLightbox}
           onNext={nextPhoto}
           onPrev={prevPhoto}
+          albumName={album.name}
         />
       )}
     </div>

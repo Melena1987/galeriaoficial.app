@@ -8,9 +8,10 @@ interface LightboxProps {
   onClose: () => void;
   onNext: () => void;
   onPrev: () => void;
+  albumName?: string;
 }
 
-const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, onPrev }) => {
+const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, onPrev, albumName }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchDeltaX, setTouchDeltaX] = useState(0);
@@ -48,28 +49,53 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
     if (isProcessing) return;
     setIsProcessing(true);
     
+    const fileName = currentPhoto.fileName || `photo-${currentPhoto.id}.jpg`;
+    
     try {
+      // IDEAL PATH: Fetch the image data to allow true file sharing or a named download.
+      // This will only work if CORS is correctly configured on the storage bucket.
       const response = await fetch(currentPhoto.url);
-      if (!response.ok) throw new Error('Network response was not ok.');
+      if (!response.ok) throw new Error('Network response was not ok, likely a CORS issue.');
       const blob = await response.blob();
-      const fileName = currentPhoto.fileName || `photo-${currentPhoto.id}.jpg`;
+      
       const file = new File([blob], fileName, { type: blob.type });
 
-      // Use Web Share API if available, otherwise fall back to download
+      // Mobile / Modern browsers with Web Share API for files
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: fileName,
-          text: `Foto compartida desde la galería.`,
+          text: albumName ? `Foto del álbum ${albumName}` : `Foto compartida desde la galería.`,
         });
       } else {
+        // Desktop / Fallback for browsers without file sharing
         triggerDownload(blob, fileName);
       }
-    } catch (error: any) {
-      // Don't show an error if the user cancels the share dialog
-      if (error.name !== 'AbortError') {
-        console.error('Share/Download failed:', error);
-        alert('No se pudo compartir o descargar la imagen.');
+
+    } catch (error) {
+      console.warn('Ideal share/download path failed, falling back to simpler methods.', error);
+
+      // FALLBACK PATH: If fetch fails (e.g., CORS error), use URL-based methods.
+      try {
+        // Mobile fallback: Share the direct URL to the image.
+        if (navigator.share) {
+          await navigator.share({
+            title: albumName ? `Foto de ${albumName}` : 'Mira esta foto',
+            text: albumName ? `Te comparto esta foto del álbum "${albumName}"` : 'Te comparto esta foto:',
+            url: currentPhoto.url, // Corrected: Share the photo URL, not the page URL.
+          });
+        } else {
+          // Desktop fallback: Open the image in a new tab. The user can save it from there.
+          // Direct download with a custom name is not possible cross-origin without CORS.
+          window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
+        }
+      } catch (fallbackError: any) {
+        // Do not show an error if the user simply closes the share dialog.
+        if (fallbackError.name !== 'AbortError') {
+          console.error('Fallback share/open failed:', fallbackError);
+          // Only show alert if the very last resort fails.
+          alert('No se pudo compartir o descargar la imagen.');
+        }
       }
     } finally {
       setIsProcessing(false);
