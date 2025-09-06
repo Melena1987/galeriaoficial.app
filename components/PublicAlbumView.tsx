@@ -25,6 +25,7 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
       const description = album.description || `Mira las fotos del álbum "${album.name}".`;
       // Use the full-resolution cover photo for the best preview quality.
       const imageUrl = album.coverPhotoUrl || 'https://images.unsplash.com/photo-1593011033254-2158da848318?q=80&w=1200&h=630&auto=format&fit=crop';
+      const currentUrl = window.location.href;
 
       document.title = newTitle;
 
@@ -39,9 +40,11 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
       updateMetaTag('meta[property="og:title"]', newTitle);
       updateMetaTag('meta[property="og:description"]', description);
       updateMetaTag('meta[property="og:image"]', imageUrl);
+      updateMetaTag('meta[property="og:url"]', currentUrl);
       updateMetaTag('meta[property="twitter:title"]', newTitle);
       updateMetaTag('meta[property="twitter:description"]', description);
       updateMetaTag('meta[property="twitter:image"]', imageUrl);
+      updateMetaTag('meta[property="twitter:url"]', currentUrl);
 
       // Cleanup function to reset meta tags when the component unmounts
       return () => {
@@ -51,9 +54,11 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
         updateMetaTag('meta[property="og:title"]', 'GaleríaOficial.app by Manu');
         updateMetaTag('meta[property="og:description"]', 'Crea, gestiona y comparte álbumes de fotos con un diseño profesional y minimalista.');
         updateMetaTag('meta[property="og:image"]', 'https://images.unsplash.com/photo-1593011033254-2158da848318?q=80&w=1200&h=630&auto=format&fit=crop');
+        updateMetaTag('meta[property="og:url"]', 'https://galeriaoficial.app');
         updateMetaTag('meta[property="twitter:title"]', 'GaleríaOficial.app by Manu');
         updateMetaTag('meta[property="twitter:description"]', 'Crea, gestiona y comparte álbumes de fotos con un diseño profesional y minimalista.');
         updateMetaTag('meta[property="twitter:image"]', 'https://images.unsplash.com/photo-1593011033254-2158da848318?q=80&w=1200&h=630&auto=format&fit=crop');
+        updateMetaTag('meta[property="twitter:url"]', 'https://galeriaoficial.app');
       };
     }
   }, [album]);
