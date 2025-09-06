@@ -9,7 +9,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyB_EcU2lLQR8fads3cz_o_hifog9Vn-nys",
   authDomain: "galeriaoficialapp.firebaseapp.com",
   projectId: "galeriaoficialapp",
-  storageBucket: "galeriaoficialapp.appspot.com",
+  storageBucket: "galeriaoficialapp.firebasestorage.app",
   messagingSenderId: "149378720195",
   appId: "1:149378720195:web:a853d89c22ee12b4f5dd76"
 };
