@@ -1,4 +1,4 @@
-import React, { useEffect, FC, useState } from 'react';
+import React, { useEffect, FC, useState, useRef } from 'react';
 import { Photo } from '../types';
 import Spinner from './Spinner';
 
@@ -12,17 +12,36 @@ interface LightboxProps {
 }
 
 const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, onPrev, albumName }) => {
-  const [isActionInProgress, setIsActionInProgress] = useState(false);
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [showToast, setShowToast] = useState(false);
+  const toastTimeoutRef = useRef<number | null>(null);
   
   // State for swipe gestures
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
 
   const currentPhoto = photos[currentIndex];
+  
+  // Function to show the guidance toast
+  const triggerToast = () => {
+    // Clear any existing timeout to avoid overlaps
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setShowToast(true);
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setShowToast(false);
+    }, 2500); // Show for 2.5 seconds
+  };
+  
+  // Effect to show the guidance toast ONLY when the lightbox first opens.
+  useEffect(() => {
+    triggerToast();
+    // The empty dependency array ensures this effect runs only once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Effect for keyboard navigation and disabling body scroll
+  // Effect for keyboard navigation and managing body scroll.
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -31,11 +50,17 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       if (e.key === 'ArrowLeft') onPrev();
     };
     window.addEventListener('keydown', handleKeyDown);
+
     return () => {
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
+      // Cleanup any active toast timeout when the component unmounts.
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
     };
-  }, [onClose, onNext, onPrev]);
+  }, [onClose, onNext, onPrev]); // This effect doesn't need to re-run on photo change.
+
 
   // Effect to load the current image and preload adjacent ones
   useEffect(() => {
@@ -57,44 +82,10 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
 
   if (!currentPhoto) return null;
 
-  // Smart handler to share on mobile or download on desktop
-  const handleDownloadOrShare = async (e: React.MouseEvent) => {
+  // This function now ONLY shows the toast message as a reminder.
+  const handleShowGuidance = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isActionInProgress) return;
-    setIsActionInProgress(true);
-
-    try {
-      const response = await fetch(currentPhoto.url);
-      if (!response.ok) throw new Error('Network response was not ok');
-      const blob = await response.blob();
-      const file = new File([blob], currentPhoto.fileName, { type: blob.type });
-
-      // Use Web Share API if available (modern mobile browsers)
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: currentPhoto.fileName,
-          text: `Imagen del álbum "${albumName}"`,
-        });
-      } else {
-        // Fallback to direct download for desktop browsers
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = currentPhoto.fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-      }
-    } catch (error) {
-      console.error('Download/Share failed, falling back to new tab:', error);
-      // Ultimate fallback: open in a new tab and show guidance toast.
-      window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 2500); // Show for 2.5 seconds
-    } finally {
-      setIsActionInProgress(false);
-    }
+    triggerToast();
   };
 
   // Touch event handlers for swipe navigation
@@ -142,17 +133,14 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       {/* Top bar with controls */}
       <div className="absolute top-0 right-0 z-20 flex items-center gap-4 p-4 text-white">
         <button
-          onClick={handleDownloadOrShare}
-          disabled={isActionInProgress}
-          className="p-2 transition-transform rounded-full hover:bg-white/10 hover:scale-110 disabled:cursor-not-allowed"
-          aria-label="Descargar o compartir imagen"
-          title="Descargar o compartir imagen"
+          onClick={handleShowGuidance}
+          className="p-2 transition-transform rounded-full hover:bg-white/10 hover:scale-110"
+          aria-label="Cómo guardar la imagen"
+          title="Cómo guardar la imagen"
         >
-          {isActionInProgress ? <Spinner className="w-6 h-6 border-2" /> : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-          )}
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
         </button>
         <button onClick={onClose} className="p-2 transition-transform rounded-full hover:bg-white/10 hover:scale-110" aria-label="Cerrar">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -196,11 +184,11 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
           <img
             src={currentPhoto.url}
             alt={currentPhoto.fileName}
-            onClick={handleDownloadOrShare}
+            onClick={handleShowGuidance}
             className={`
               block object-contain w-auto h-auto max-w-full max-h-full transition-opacity duration-300
               ${imageStatus === 'loaded' ? 'opacity-100' : 'opacity-0'}
-              ${isActionInProgress ? 'cursor-wait' : 'cursor-pointer'}
+              cursor-pointer
             `}
             style={{ animation: imageStatus === 'loaded' ? 'fadeIn 0.3s ease-in-out' : 'none' }}
             draggable="false"
