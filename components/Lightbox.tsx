@@ -196,9 +196,11 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
           <img
             src={currentPhoto.url}
             alt={currentPhoto.fileName}
+            onClick={handleDownloadOrShare}
             className={`
               block object-contain w-auto h-auto max-w-full max-h-full transition-opacity duration-300
               ${imageStatus === 'loaded' ? 'opacity-100' : 'opacity-0'}
+              ${isActionInProgress ? 'cursor-wait' : 'cursor-pointer'}
             `}
             style={{ animation: imageStatus === 'loaded' ? 'fadeIn 0.3s ease-in-out' : 'none' }}
             draggable="false"
