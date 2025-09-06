@@ -29,24 +29,22 @@ export const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 /*
 ================================================================================
-SOLUCIÓN A PROBLEMAS DE SUBIDA Y DESCARGA (CORS)
+SOLUCIÓN AL PROBLEMA DE DESCARGA DIRECTA (CORS)
 ================================================================================
 
 --- EL PROBLEMA ---
-La funcionalidad de subida de fotos (como en UploadForm.tsx) o de descarga directa
-(como en Lightbox.tsx) falla y muestra errores de CORS en la consola del navegador.
-Esto se debe a que el navegador bloquea las peticiones que el código Javascript
-(desde galeriaoficial.app) hace a Firebase Storage (firebasestorage.googleapis.com).
+La funcionalidad de descarga directa en el Lightbox falla y muestra el alert de
+"No se pudo iniciar la descarga directa..." porque el navegador bloquea la petición
+que el código Javascript (desde galeriaoficial.app) hace para obtener la imagen
+desde Firebase Storage (firebasestorage.googleapis.com).
 
-Esta es una medida de seguridad estándar del navegador llamada "Cross-Origin
+Esto es una medida de seguridad estándar del navegador llamada "Cross-Origin
 Resource Sharing" (CORS). El servidor de Storage debe dar permiso explícito
-para que otros dominios puedan solicitar sus archivos, tanto para leerlos (GET)
-como para escribirlos (POST, PUT, DELETE).
+para que otros dominios puedan solicitar sus archivos.
 
 --- LA SOLUCIÓN ---
 Debemos aplicar una configuración CORS a nuestro bucket de Firebase Storage para
-que confíe en nuestra aplicación web. La configuración anterior solo permitía descargas
-(GET), pero no subidas (POST/PUT), que es la causa del error.
+que confíe en nuestra aplicación web.
 
 --- INSTRUCCIONES (REALIZAR UNA SOLA VEZ) ---
 
@@ -59,30 +57,17 @@ que confíe en nuestra aplicación web. La configuración anterior solo permití
 2.  **Crea el archivo de configuración:**
     a. En la terminal de Cloud Shell, escribe `touch cors.json` y pulsa Enter.
     b. Luego, escribe `nano cors.json` y pulsa Enter. Se abrirá un editor de texto.
-    c. Copia y pega el siguiente contenido EXACTAMENTE dentro del editor. Esta
-       configuración permite subidas, descargas y eliminaciones desde tu app.
+    c. Copia y pega el siguiente contenido EXACTAMENTE dentro del editor:
 
     [
       {
-        "origin": [
-          "https://galeriaoficial.app",
-          "http://localhost:3000"
-        ],
-        "method": [
-          "GET",
-          "POST",
-          "PUT",
-          "DELETE"
-        ],
-        "responseHeader": [
-          "Content-Type"
-        ],
+        "origin": ["https://galeriaoficial.app"],
+        "method": ["GET"],
         "maxAgeSeconds": 3600
       }
     ]
 
-    d. **Nota:** Si desarrollas en una URL local diferente, reemplaza `http://localhost:3000` por la tuya.
-    e. Guarda y cierra el editor: pulsa `Ctrl+X`, luego `Y`, y finalmente `Enter`.
+    d. Guarda y cierra el editor: pulsa `Ctrl+X`, luego `Y`, y finalmente `Enter`.
 
 3.  **Aplica la configuración al bucket:**
     a. Ejecuta el siguiente comando en la terminal de Cloud Shell. Este comando
@@ -95,8 +80,8 @@ que confíe en nuestra aplicación web. La configuración anterior solo permití
 
 4.  **Espera y prueba:**
     a. Los cambios pueden tardar unos minutos en aplicarse globalmente.
-    b. Vuelve a tu aplicación web y actualiza la página. La subida de fotos
-       ahora debería funcionar sin errores.
+    b. Vuelve a tu aplicación web e intenta descargar una imagen de nuevo.
+       La descarga directa debería funcionar sin el alert.
 
 ================================================================================
 NOTAS SOBRE LAS REGLAS DE SEGURIDAD DE FIREBASE
