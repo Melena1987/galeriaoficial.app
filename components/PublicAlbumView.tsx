@@ -57,23 +57,6 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
   }, [album]);
 
 
-  const generateThumbnailUrl = (url: string | undefined): string => {
-    if (!url) return '';
-    try {
-      const urlParts = url.split('?');
-      const baseUrl = urlParts[0];
-      const queryString = urlParts.length > 1 ? `?${urlParts[1]}` : '';
-      const thumbnailBaseUrl = baseUrl.replace(/(\.[^./\\]+)$/, '_400x400$1');
-      if (thumbnailBaseUrl === baseUrl) {
-        return url;
-      }
-      return thumbnailBaseUrl + queryString;
-    } catch (e) {
-      console.error("Error generating thumbnail URL:", e);
-      return url;
-    }
-  };
-
   useEffect(() => {
     const fetchAlbumAndPhotos = async () => {
       setLoading(true);
@@ -163,13 +146,18 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {photos.map((photo, index) => (
-              <div 
-                key={photo.id} 
-                className="relative overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg cursor-pointer group bg-slate-800 aspect-square hover:scale-105"
+              <div
+                key={photo.id}
+                className="overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg cursor-pointer group aspect-square bg-slate-800 hover:scale-105"
                 onClick={() => openLightbox(index)}
               >
-                <img src={generateThumbnailUrl(photo.url)} alt={photo.fileName} className="object-cover w-full h-full" />
-                 <div className="absolute inset-0 transition-opacity duration-300 opacity-0 group-hover:opacity-100 bg-black/40"></div>
+                <img
+                  src={photo.url}
+                  alt={photo.fileName}
+                  className="object-cover w-full h-full"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
             ))}
           </div>
