@@ -80,13 +80,18 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       return;
     }
 
-    // Desktop path: Attempt direct download
+    // Desktop path: Attempt direct download by fetching as blob
     setIsDownloading(true);
     try {
-      await saveAs(currentPhoto.url, currentPhoto.fileName);
+      const response = await fetch(currentPhoto.url);
+      if (!response.ok) {
+        throw new Error(`La respuesta de la red no fue correcta: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      saveAs(blob, currentPhoto.fileName);
     } catch (error) {
-      console.error("Direct download failed, falling back to new tab.", error);
-      window.open(currentPhoto.url, '_blank', 'noopener,noreferrer');
+      console.error("La descarga directa falló:", error);
+      alert('No se pudo iniciar la descarga directa. Por favor, intenta guardar la imagen haciendo clic derecho sobre ella y seleccionando "Guardar imagen como...".');
     } finally {
       setIsDownloading(false);
     }
