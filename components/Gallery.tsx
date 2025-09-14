@@ -1,5 +1,5 @@
 // FIX: Re-implement the Gallery component to be a functional React component.
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db, auth, storage } from '../services/firebase';
 import firebase from 'firebase/compat/app';
 import { Album, Photo } from '../types';
@@ -14,6 +14,7 @@ const Gallery: React.FC = () => {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [newAlbumName, setNewAlbumName] = useState('');
@@ -54,6 +55,17 @@ const Gallery: React.FC = () => {
 
     return () => unsubscribe();
   }, [user]);
+
+  const filteredAlbums = useMemo(() => {
+    if (!searchQuery) {
+      return albums;
+    }
+    const lowercasedQuery = searchQuery.toLowerCase();
+    return albums.filter(album =>
+      album.name.toLowerCase().includes(lowercasedQuery) ||
+      (album.description && album.description.toLowerCase().includes(lowercasedQuery))
+    );
+  }, [albums, searchQuery]);
 
   const handleCreateAlbum = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,16 +191,33 @@ const Gallery: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-white">
       <Header />
       <main className="container p-4 mx-auto md:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
           <h1 className="text-3xl font-bold">Mis Álbumes</h1>
-          {isAdmin && (
-            <button
-              onClick={() => setCreateModalOpen(true)}
-              className="px-4 py-2 font-semibold text-white transition-colors bg-violet-600 rounded-md hover:bg-violet-700"
-            >
-              Crear Álbum
-            </button>
-          )}
+          <div className="flex flex-col-reverse items-start gap-4 md:flex-row md:items-center">
+            <div className="relative w-full md:w-64">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <svg aria-hidden="true" className="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="search"
+                placeholder="Buscar álbum..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="block w-full py-2 pl-10 pr-4 text-white rounded-md bg-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                aria-label="Buscar álbum"
+              />
+            </div>
+            {isAdmin && (
+              <button
+                onClick={() => setCreateModalOpen(true)}
+                className="flex-shrink-0 w-full px-4 py-2 font-semibold text-white transition-colors bg-violet-600 rounded-md md:w-auto hover:bg-violet-700"
+              >
+                Crear Álbum
+              </button>
+            )}
+          </div>
         </div>
         
         {albums.length === 0 ? (
@@ -196,9 +225,14 @@ const Gallery: React.FC = () => {
             <p>No tienes álbumes todavía.</p>
             {isAdmin && <p>¡Crea tu primer álbum para empezar!</p>}
           </div>
+        ) : filteredAlbums.length === 0 ? (
+          <div className="py-20 text-center text-slate-500">
+            <p>No se encontraron álbumes que coincidan con tu búsqueda.</p>
+            <p>Intenta con otras palabras.</p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {albums.map(album => (
+            {filteredAlbums.map(album => (
               <AlbumCard
                 key={album.id}
                 album={album}
