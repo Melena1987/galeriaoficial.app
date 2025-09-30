@@ -15,6 +15,7 @@ interface LightboxProps {
 const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, onPrev, albumName }) => {
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   const toastTimeoutRef = useRef<number | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   
@@ -24,19 +25,14 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
 
   const currentPhoto = photos[currentIndex];
   
-  const triggerToast = () => {
+  const triggerToast = (message: string) => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMessage(message);
     setShowToast(true);
-    toastTimeoutRef.current = window.setTimeout(() => setShowToast(false), 2500);
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setShowToast(false);
+    }, 3000);
   };
-  
-  useEffect(() => {
-    // Show initial guidance only on mobile-like devices where "long press" is relevant.
-    if ('share' in navigator) {
-      triggerToast();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -73,25 +69,38 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
 
   const handleDownloadOrShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
-
-    // Mobile path: Show guidance toast
-    if ('share' in navigator) {
-      triggerToast();
-      return;
-    }
-
-    // Desktop path: Attempt direct download by fetching as blob
     setIsDownloading(true);
+
     try {
+      // Fetch the image data first, as it's needed for both sharing and downloading.
       const response = await fetch(currentPhoto.url);
       if (!response.ok) {
-        throw new Error(`La respuesta de la red no fue correcta: ${response.statusText}`);
+        throw new Error(`Network response was not ok: ${response.statusText}`);
       }
       const blob = await response.blob();
-      saveAs(blob, currentPhoto.fileName);
+      
+      const fileType = blob.type || 'image/jpeg';
+      const fileExtension = fileType.split('/')[1] || 'jpg';
+      const fileNameWithExt = currentPhoto.fileName.includes('.') ? currentPhoto.fileName : `${currentPhoto.fileName}.${fileExtension}`;
+      
+      const file = new File([blob], fileNameWithExt, { type: fileType });
+
+      // 1. Prioritize Web Share API for a native experience on supported devices
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: currentPhoto.fileName,
+          text: albumName ? `Imagen del álbum: ${albumName}` : currentPhoto.fileName,
+        });
+      } else {
+        // 2. Fallback to direct download using file-saver for other browsers
+        saveAs(blob, fileNameWithExt);
+      }
     } catch (error) {
-      console.error("La descarga directa falló:", error);
-      alert('No se pudo iniciar la descarga directa. Por favor, intenta guardar la imagen haciendo clic derecho sobre ella y seleccionando "Guardar imagen como...".');
+      console.error("Download/Share failed (likely a CORS issue). Opening in a new tab as a fallback.", error);
+      // 3. Last resort if fetch fails: open in a new tab for manual saving.
+      triggerToast('Abriendo en una nueva pestaña para guardar...');
+      window.open(currentPhoto.url, '_blank');
     } finally {
       setIsDownloading(false);
     }
@@ -120,8 +129,6 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       else onPrev();
   };
 
-  const isMobileExperience = 'share' in navigator;
-
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-black bg-opacity-90"
@@ -135,8 +142,8 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
           onClick={handleDownloadOrShare}
           disabled={isDownloading}
           className="p-2 transition-transform rounded-full hover:bg-white/10 hover:scale-110 disabled:cursor-wait disabled:scale-100"
-          aria-label={isMobileExperience ? "Cómo guardar la imagen" : "Descargar imagen"}
-          title={isMobileExperience ? "Cómo guardar la imagen" : "Descargar imagen"}
+          aria-label="Guardar o compartir imagen"
+          title="Guardar o compartir imagen"
         >
           {isDownloading ? (
             <Spinner className="w-6 h-6 border-2" />
@@ -181,11 +188,9 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
           <img
             src={currentPhoto.url}
             alt={currentPhoto.fileName}
-            onClick={handleDownloadOrShare}
             className={`
               block object-contain w-auto h-auto max-w-full max-h-full transition-opacity duration-300
               ${imageStatus === 'loaded' ? 'opacity-100' : 'opacity-0'}
-              cursor-pointer
             `}
             style={{ animation: imageStatus === 'loaded' ? 'fadeIn 0.3s ease-in-out' : 'none' }}
             draggable="false"
@@ -203,17 +208,15 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
         </button>
       </div>
 
-      {isMobileExperience && (
-        <div className={`
+      <div className={`
           absolute left-1/2 -translate-x-1/2 bottom-16 z-30
           px-4 py-2 text-sm text-white rounded-lg shadow-lg
           bg-slate-800/90 ring-1 ring-white/10
           transition-all duration-300 ease-in-out
           ${showToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}
         `}>
-          Mantén pulsada la foto para guardarla
-        </div>
-      )}
+          {toastMessage}
+      </div>
 
       <div className="absolute bottom-0 z-20 px-3 py-1 m-4 text-sm text-white bg-black rounded-md bg-opacity-50">
            {currentIndex + 1} / {photos.length}
