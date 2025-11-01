@@ -8,9 +8,10 @@ import { getThumbnailUrl } from '../utils/image';
 
 interface PublicAlbumViewProps {
   albumId: string;
+  isEmbedded: boolean;
 }
 
-const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
+const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId, isEmbedded }) => {
   const [album, setAlbum] = useState<Album | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,19 +146,21 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId }) => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      <header className="p-4 shadow-md bg-slate-900/75 backdrop-blur-lg ring-1 ring-white/10">
-        <div className="container mx-auto">
-          <h1 className="text-3xl font-bold">{album.name}</h1>
-          <p className="text-slate-400">{album.description}</p>
-        </div>
-      </header>
-      <main className="container p-4 mx-auto md:p-6">
+      {!isEmbedded && (
+        <header className="p-4 shadow-md bg-slate-900/75 backdrop-blur-lg ring-1 ring-white/10">
+          <div className="container mx-auto">
+            <h1 className="text-3xl font-bold">{album.name}</h1>
+            <p className="text-slate-400">{album.description}</p>
+          </div>
+        </header>
+      )}
+      <main className={`container mx-auto ${isEmbedded ? 'p-1 sm:p-2' : 'p-4 md:p-6'}`}>
         {sortedPhotos.length === 0 ? (
           <div className="py-20 text-center text-slate-500">
             <p>Este álbum está vacío.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 ${isEmbedded ? 'gap-1 sm:gap-2' : 'gap-4'}`}>
             {sortedPhotos.map((photo, index) => (
               <div
                 key={photo.id}

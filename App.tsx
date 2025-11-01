@@ -10,8 +10,13 @@ const App: React.FC = () => {
   const [user, setUser] = useState<firebase.User | null>(null);
   const [loading, setLoading] = useState(true);
   const [publicAlbumId, setPublicAlbumId] = useState<string | null>(null);
+  const [isEmbedded, setIsEmbedded] = useState(false);
 
   useEffect(() => {
+    // Check for embed mode from URL query parameters.
+    const searchParams = new URLSearchParams(window.location.search);
+    setIsEmbedded(searchParams.get('embed') === 'true');
+
     const getAlbumIdFromHash = () => {
       const path = window.location.hash.substring(1);
       if (path.startsWith('/public/album/')) {
@@ -66,7 +71,7 @@ const App: React.FC = () => {
   }
   
   if (publicAlbumId) {
-    return <PublicAlbumView albumId={publicAlbumId} />;
+    return <PublicAlbumView albumId={publicAlbumId} isEmbedded={isEmbedded} />;
   }
 
   return user ? <Gallery /> : <Login />;
