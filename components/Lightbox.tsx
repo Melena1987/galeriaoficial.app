@@ -1,7 +1,6 @@
 import React, { useEffect, FC, useState, useRef } from 'react';
 import { Photo } from '../types';
 import Spinner from './Spinner';
-import saveAs from 'file-saver';
 
 interface LightboxProps {
   photos: Photo[];
@@ -17,7 +16,6 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const toastTimeoutRef = useRef<number | null>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
   
   // State for swipe gestures
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -33,6 +31,11 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       setShowToast(false);
     }, 3000);
   };
+
+  // Show instruction toast when Lightbox opens
+  useEffect(() => {
+    triggerToast('Mantén pulsada la imagen para guardarla');
+  }, []);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -67,46 +70,6 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
 
   if (!currentPhoto) return null;
 
-  const handleDownloadOrShare = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsDownloading(true);
-
-    try {
-      // Fetch the image data first, as it's needed for both sharing and downloading.
-      const response = await fetch(currentPhoto.url);
-      if (!response.ok) {
-        throw new Error(`Network response was not ok: ${response.statusText}`);
-      }
-      const blob = await response.blob();
-      
-      const fileType = blob.type || 'image/jpeg';
-      const fileExtension = fileType.split('/')[1] || 'jpg';
-      const fileNameWithExt = currentPhoto.fileName.includes('.') ? currentPhoto.fileName : `${currentPhoto.fileName}.${fileExtension}`;
-      
-      const file = new File([blob], fileNameWithExt, { type: fileType });
-
-      // 1. Prioritize Web Share API for a native experience on supported devices
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: currentPhoto.fileName,
-          text: albumName ? `Imagen del álbum: ${albumName}` : currentPhoto.fileName,
-        });
-      } else {
-        // 2. Fallback to direct download using file-saver for other browsers
-        saveAs(blob, fileNameWithExt);
-      }
-    } catch (error) {
-      console.error("Download/Share failed (likely a CORS issue). Opening in a new tab as a fallback.", error);
-      // 3. Last resort if fetch fails: open in a new tab for manual saving.
-      triggerToast('Abriendo en una nueva pestaña para guardar...');
-      window.open(currentPhoto.url, '_blank');
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchEndX(null);
     setTouchStartX(e.targetTouches[0].clientX);
@@ -138,21 +101,6 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       aria-label="Image viewer"
     >
       <div className="absolute top-0 right-0 z-20 flex items-center gap-4 p-4 text-white">
-        <button
-          onClick={handleDownloadOrShare}
-          disabled={isDownloading}
-          className="p-2 transition-transform rounded-full hover:bg-white/10 hover:scale-110 disabled:cursor-wait disabled:scale-100"
-          aria-label="Guardar o compartir imagen"
-          title="Guardar o compartir imagen"
-        >
-          {isDownloading ? (
-            <Spinner className="w-6 h-6 border-2" />
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-          )}
-        </button>
         <button onClick={onClose} className="p-2 transition-transform rounded-full hover:bg-white/10 hover:scale-110" aria-label="Cerrar">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -194,6 +142,7 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
             `}
             style={{ animation: imageStatus === 'loaded' ? 'fadeIn 0.3s ease-in-out' : 'none' }}
             draggable="false"
+            onContextMenu={(e) => e.stopPropagation()} 
           />
         </div>
 
