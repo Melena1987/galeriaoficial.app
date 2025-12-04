@@ -30,6 +30,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin
     onSetCover();
   };
 
+  const isVideo = photo.type === 'video' || photo.mimeType?.startsWith('video/') || false;
 
   return (
     <div
@@ -40,7 +41,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin
         <button
           onClick={handleSelectClick}
           className="absolute top-2 left-2 z-20 flex items-center justify-center w-6 h-6 text-white transition-all transform bg-black rounded-full bg-opacity-60 hover:bg-opacity-80 group-hover:opacity-100"
-          aria-label="Seleccionar foto"
+          aria-label="Seleccionar"
         >
           {isSelected ? (
              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-violet-400" viewBox="0 0 20 20" fill="currentColor">
@@ -52,11 +53,30 @@ const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin
         </button>
       )}
 
-      <LazyImage
-        src={getThumbnailUrl(photo.url)}
-        alt={photo.fileName}
-        className={`object-cover w-full h-full transition-opacity ${isSelected ? 'opacity-60' : ''}`}
-      />
+      {isVideo ? (
+        <div className={`relative w-full h-full ${isSelected ? 'opacity-60' : ''}`}>
+           <video 
+              src={`${photo.url}#t=0.5`} 
+              className="object-cover w-full h-full pointer-events-none" 
+              preload="metadata"
+              muted
+              playsInline
+           />
+           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <div className="p-3 bg-black/40 rounded-full backdrop-blur-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+           </div>
+        </div>
+      ) : (
+        <LazyImage
+          src={getThumbnailUrl(photo.url)}
+          alt={photo.fileName}
+          className={`object-cover w-full h-full transition-opacity ${isSelected ? 'opacity-60' : ''}`}
+        />
+      )}
       
       {isCover && (
           <div className="absolute z-10 p-1 text-yellow-300 bottom-2 left-2" title="Foto de portada">
@@ -72,8 +92,8 @@ const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin
                 <button
                     onClick={handleSetCover}
                     className="p-1.5 text-white transition-all bg-blue-600 rounded-full hover:bg-blue-500 active:scale-90"
-                    aria-label="Usar como foto de portada"
-                    title="Usar como foto de portada"
+                    aria-label="Usar como portada"
+                    title="Usar como portada"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" />
@@ -83,8 +103,8 @@ const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onClick, onDelete, isAdmin
             <button
               onClick={handleDelete}
               className="p-1.5 text-white transition-all bg-rose-600 rounded-full hover:bg-rose-500 active:scale-90"
-              aria-label="Eliminar foto"
-              title="Eliminar foto"
+              aria-label="Eliminar"
+              title="Eliminar"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

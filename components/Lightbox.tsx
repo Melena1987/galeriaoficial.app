@@ -34,7 +34,7 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
 
   // Show instruction toast when Lightbox opens
   useEffect(() => {
-    triggerToast('Mantén pulsada la imagen para guardarla');
+    triggerToast('Mantén pulsado para guardar');
   }, []);
 
   useEffect(() => {
@@ -56,16 +56,33 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
 
   useEffect(() => {
     if (!currentPhoto) return;
+    
+    const isVideo = currentPhoto.type === 'video' || currentPhoto.mimeType?.startsWith('video/') || false;
+
+    if (isVideo) {
+      setImageStatus('loaded');
+      return;
+    }
+
     setImageStatus('loading');
     const img = new Image();
     img.src = currentPhoto.url;
     img.onload = () => setImageStatus('loaded');
     img.onerror = () => setImageStatus('error');
     
+    // Preload neighbors
     const nextPhoto = photos[(currentIndex + 1) % photos.length];
     const prevPhoto = photos[(currentIndex - 1 + photos.length) % photos.length];
-    if (nextPhoto) new Image().src = nextPhoto.url;
-    if (prevPhoto) new Image().src = prevPhoto.url;
+    
+    const preload = (p: Photo) => {
+      const pIsVideo = p.type === 'video' || p.mimeType?.startsWith('video/') || false;
+      if (!pIsVideo) {
+        new Image().src = p.url;
+      }
+    };
+
+    if (nextPhoto) preload(nextPhoto);
+    if (prevPhoto) preload(prevPhoto);
   }, [currentIndex, photos, currentPhoto]);
 
   if (!currentPhoto) return null;
@@ -92,13 +109,15 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
       else onPrev();
   };
 
+  const isVideo = currentPhoto.type === 'video' || currentPhoto.mimeType?.startsWith('video/') || false;
+
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-black bg-opacity-90"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Image viewer"
+      aria-label="Viewer"
     >
       <div className="absolute top-0 right-0 z-20 flex items-center gap-4 p-4 text-white">
         <button onClick={onClose} className="p-2 transition-transform rounded-full hover:bg-white/10 hover:scale-110" aria-label="Cerrar">
@@ -129,21 +148,34 @@ const Lightbox: FC<LightboxProps> = ({ photos, currentIndex, onClose, onNext, on
           {imageStatus === 'loading' && <div className="absolute inset-0 flex items-center justify-center"><Spinner /></div>}
           {imageStatus === 'error' && (
              <div className="text-center text-rose-400">
-                <p>Error al cargar la imagen.</p>
+                <p>Error al cargar el archivo.</p>
                 <p className='text-sm text-slate-400'>{currentPhoto.fileName}</p>
              </div>
           )}
-          <img
-            src={currentPhoto.url}
-            alt={currentPhoto.fileName}
-            className={`
-              block object-contain w-auto h-auto max-w-full max-h-full transition-opacity duration-300
-              ${imageStatus === 'loaded' ? 'opacity-100' : 'opacity-0'}
-            `}
-            style={{ animation: imageStatus === 'loaded' ? 'fadeIn 0.3s ease-in-out' : 'none' }}
-            draggable="false"
-            onContextMenu={(e) => e.stopPropagation()} 
-          />
+          
+          {isVideo ? (
+            <video
+              src={currentPhoto.url}
+              controls
+              autoPlay
+              playsInline
+              className="block object-contain w-auto h-auto max-w-full max-h-full shadow-2xl"
+              draggable="false"
+              onContextMenu={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={currentPhoto.url}
+              alt={currentPhoto.fileName}
+              className={`
+                block object-contain w-auto h-auto max-w-full max-h-full transition-opacity duration-300
+                ${imageStatus === 'loaded' ? 'opacity-100' : 'opacity-0'}
+              `}
+              style={{ animation: imageStatus === 'loaded' ? 'fadeIn 0.3s ease-in-out' : 'none' }}
+              draggable="false"
+              onContextMenu={(e) => e.stopPropagation()} 
+            />
+          )}
         </div>
 
         <button

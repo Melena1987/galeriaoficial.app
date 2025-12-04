@@ -59,19 +59,24 @@ const UploadForm: React.FC<UploadFormProps> = ({ albumId }) => {
           async () => {
             try {
               const url = await storageRef.getDownloadURL();
+              const isVideo = file.type.startsWith('video/');
+              
               const photoData = {
                 albumId,
                 userId: user.uid,
                 url,
                 fileName: file.name, // Keep original file name for metadata
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                type: isVideo ? 'video' : 'image',
+                mimeType: file.type
               };
               
               await db.collection('photos').add(photoData);
 
-              // Check if album needs a cover photo
+              // Check if album needs a cover photo (only use images for cover if possible, but video works too if needed)
               const albumRef = db.collection('albums').doc(albumId);
               const albumDoc = await albumRef.get();
+              // Prefer images for cover photos, but take what we get if it's the first upload
               if (albumDoc.exists && !albumDoc.data()?.coverPhotoUrl) {
                 await albumRef.update({ coverPhotoUrl: url });
               }
@@ -151,12 +156,12 @@ const UploadForm: React.FC<UploadFormProps> = ({ albumId }) => {
     >
       <div className="flex flex-col items-center justify-center">
         <label htmlFor="file-upload" className="relative font-semibold text-violet-400 rounded-md cursor-pointer hover:text-violet-300">
-          <span>Selecciona fotos para subir</span>
+          <span>Selecciona fotos o vídeos</span>
           <input 
             id="file-upload" 
             name="file-upload" 
             type="file" 
-            accept="image/*"
+            accept="image/*,video/*"
             className="sr-only" 
             multiple 
             onChange={handleFileChange}

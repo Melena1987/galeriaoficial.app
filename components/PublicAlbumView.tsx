@@ -161,19 +161,41 @@ const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({ albumId, isEmbedded }
           </div>
         ) : (
           <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 ${isEmbedded ? 'gap-1 sm:gap-2' : 'gap-4'}`}>
-            {sortedPhotos.map((photo, index) => (
-              <div
-                key={photo.id}
-                className="overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg cursor-pointer group aspect-square bg-slate-800 hover:scale-105"
-                onClick={() => openLightbox(index)}
-              >
-                <LazyImage
-                  src={getThumbnailUrl(photo.url)}
-                  alt={photo.fileName}
-                  className="object-cover w-full h-full"
-                />
-              </div>
-            ))}
+            {sortedPhotos.map((photo, index) => {
+              const isVideo = photo.type === 'video' || photo.mimeType?.startsWith('video/') || false;
+              return (
+                <div
+                  key={photo.id}
+                  className="relative overflow-hidden transition-transform duration-300 transform rounded-lg shadow-lg cursor-pointer group aspect-square bg-slate-800 hover:scale-105"
+                  onClick={() => openLightbox(index)}
+                >
+                  {isVideo ? (
+                    <div className="relative w-full h-full">
+                       <video 
+                          src={`${photo.url}#t=0.5`} 
+                          className="object-cover w-full h-full pointer-events-none" 
+                          preload="metadata"
+                          muted
+                          playsInline
+                       />
+                       <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                          <div className="p-3 bg-black/40 rounded-full backdrop-blur-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          </div>
+                       </div>
+                    </div>
+                  ) : (
+                    <LazyImage
+                      src={getThumbnailUrl(photo.url)}
+                      alt={photo.fileName}
+                      className="object-cover w-full h-full"
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </main>

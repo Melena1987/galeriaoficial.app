@@ -17,4 +17,6 @@ export interface Photo {
   url: string;
   fileName: string;
   createdAt: firebase.firestore.Timestamp;
+  type?: 'image' | 'video';
+  mimeType?: string;
 }

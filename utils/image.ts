@@ -6,11 +6,22 @@
  * imágenes con un sufijo (por ejemplo, _400x400).
  * @param originalUrl La URL de la imagen original.
  * @param size El sufijo de tamaño a añadir (ej: '400x400').
- * @returns La URL de la miniatura o la URL original si ocurre un error.
+ * @returns La URL de la miniatura o la URL original si ocurre un error o si no es una imagen.
  */
 export const getThumbnailUrl = (originalUrl?: string, size: string = '400x400'): string => {
   if (!originalUrl) {
     return '';
+  }
+
+  // Si parece un video, no intentamos obtener una miniatura generada por nombre,
+  // devolvemos la URL original para que la etiqueta <video> la use.
+  // Detectar extensiones comunes de video.
+  const videoExtensions = ['.mp4', '.mov', '.webm', '.avi', '.mkv'];
+  const lowerUrl = originalUrl.toLowerCase();
+  // Comprobamos si la URL (antes de los query params) termina en una extensión de video
+  const urlPath = lowerUrl.split('?')[0];
+  if (videoExtensions.some(ext => urlPath.endsWith(ext))) {
+    return originalUrl;
   }
 
   try {
